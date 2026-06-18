@@ -1,0 +1,15 @@
+# Secrets
+.env
+
+# Agent runtime output
+run/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+.DS_Store

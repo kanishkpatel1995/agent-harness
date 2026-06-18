@@ -1,0 +1,10 @@
+# Core (only needed for REAL models; the FakeLLM offline demo needs none of these)
+litellm>=1.40.0
+python-dotenv>=1.0.0
+
+# Optional: nicer online fetching (HARNESS_OFFLINE=0)
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+
+# Dev
+pytest>=8.0.0

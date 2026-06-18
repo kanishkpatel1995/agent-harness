@@ -1,0 +1,16 @@
+[project]
+name = "agent-harness"
+version = "0.1.0"
+description = "A minimal, readable agent harness built to teach context engineering for long-running agents."
+requires-python = ">=3.10"
+dependencies = [
+    "litellm>=1.40.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+web = ["requests>=2.31.0", "beautifulsoup4>=4.12.0"]
+dev = ["pytest>=8.0.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
