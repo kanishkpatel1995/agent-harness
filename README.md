@@ -17,7 +17,7 @@ makes all of it visible.
 ## Quickstart (30 seconds, no API key)
 
 ```bash
-git clone https://github.com/patelkanishk1995/agent-harness
+git clone https://github.com/kanishkpatel1995/agent-harness
 cd agent-harness
 python run.py "context engineering for long-running agents"
 ```

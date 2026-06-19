@@ -3,6 +3,10 @@
 Curated, opinionated. These are the sources behind the talk and the best places
 to go deeper. Grouped by what they're good for.
 
+> **Going deeper?** This is the *shortlist*. For the full, verified academic
+> literature review (49 sources with arXiv IDs, organized by theme and mapped to
+> the research curriculum), see [`research-track/literature.md`](research-track/literature.md).
+
 ## Start here — context engineering
 
 - **Effective context engineering for AI agents** — Anthropic Engineering, Sep 29
@@ -70,7 +74,7 @@ to go deeper. Grouped by what they're good for.
 
 - **Learn Agentic AI** (newsletter) — https://learnagentic.substack.com
 - The talk's whole argument is implemented in this repo:
-  https://github.com/patelkanishk1995/agent-harness — read `harness/loop.py`,
+  https://github.com/kanishkpatel1995/agent-harness — read `harness/loop.py`,
   then `harness/context.py`.
 
 ---
