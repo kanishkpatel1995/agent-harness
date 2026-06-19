@@ -307,10 +307,10 @@ const exists = (f) => fs.existsSync(f);
   s = p.addSlide(); s.background = { color: INK };
   s.addText("FIND ME", { x: MX, y: 0.6, w: 9, h: 0.4, fontFace: SYNE, fontSize: 12, bold: true, color: PURPLE, charSpacing: 4, margin: 0 });
   s.addText("Clone it. Read the write-ups. Say hi.", { x: MX, y: 1.0, w: 9, h: 0.7, fontFace: SYNE, fontSize: 30, bold: true, color: WHITE, margin: 0 });
-  qrBlock(s, "qr_repo.png", "Repo", 1.2, 2.2, 1.5);
-  qrBlock(s, "qr_newsletter.png", "Learn Agentic AI", 4.25, 2.2, 1.5);
-  qrBlock(s, "qr_x.png", "X · @above_almighty", 7.3, 2.2, 1.5);
-  s.addText("LinkedIn QR — add your URL (placeholder)", { x: MX, y: 4.55, w: 9, h: 0.3, fontFace: MAN, fontSize: 11, italic: true, color: MID, align: "center", margin: 0 });
+  qrBlock(s, "qr_repo.png", "Repo", 0.95, 2.3, 1.25);
+  qrBlock(s, "qr_newsletter.png", "Learn Agentic AI", 3.25, 2.3, 1.25);
+  qrBlock(s, "qr_x.png", "X · @above_almighty", 5.55, 2.3, 1.25);
+  qrBlock(s, "qr_linkedin.png", "LinkedIn", 7.85, 2.3, 1.25);
   footer(s, 25, true);
 
   await p.writeFile({ fileName: path.join(__dirname, "founsi-context-engineering.pptx") });
