@@ -1,6 +1,8 @@
-// Build the Founsi-branded deck for AI Tinkerers (main deck + EXP-001 appendix).
-// Reproducible: `node presentation/build_deck.js` -> founsi-context-engineering.pptx
-// Brand: bg FAFAFE, ink 2E2C32, accent purple 9378FF (~5%), Syne display + Manrope body.
+// Build the Founsi-branded deck for AI Tinkerers.
+//   node presentation/build_deck.js  ->  founsi-context-engineering.pptx
+// Narrative: what context engineering IS -> why it matters -> what exists (landscape)
+// -> THEN what we're building (harness + research). Appendix: project walkthrough +
+// every experiment. Brand: bg FAFAFE, ink 2E2C32, accent purple 9378FF (~5%).
 const pptxgen = require("pptxgenjs");
 const sharp = require("sharp");
 const fs = require("fs");
@@ -8,34 +10,35 @@ const path = require("path");
 
 const BRAND = path.join(__dirname, "brand");
 const FIG = path.join(__dirname, "figures");
+const QR = path.join(__dirname, "assets", "qr");
 const BG = "FAFAFE", INK = "2E2C32", PURPLE = "9378FF", PDARK = "7B5EF0",
-      GREY = "655E74", MID = "7E7A8A", WHITE = "FFFFFF", ICE = "CADCFC";
-const SYNE = "Syne", MAN = "Manrope";
+      GREY = "655E74", MID = "7E7A8A", WHITE = "FFFFFF", ICE = "CADCFC", WASH = "EFEBFF";
+const SYNE = "Syne", MAN = "Manrope", MONO = "Courier New";
 const MX = 0.6;
 
 async function png(file, w) {
-  const buf = fs.readFileSync(path.join(BRAND, file));
-  const out = await sharp(buf, { density: 300 }).resize({ width: w }).png().toBuffer();
+  const out = await sharp(fs.readFileSync(file), { density: 300 }).resize({ width: w }).png().toBuffer();
   return "image/png;base64," + out.toString("base64");
 }
+const exists = (f) => fs.existsSync(f);
 
 (async () => {
-  const markPurple = await png("founsi-mark.svg", 400);
-  const lockupInv = await png("founsi-logo-horizontal-inverted.svg", 1600);
+  const markPurple = await png(path.join(BRAND, "founsi-mark.svg"), 400);
+  const lockupInv = await png(path.join(BRAND, "founsi-logo-horizontal-inverted.svg"), 1600);
 
   const p = new pptxgen();
-  p.layout = "LAYOUT_16x9";              // 10 x 5.625"
+  p.layout = "LAYOUT_16x9";
   p.author = "Kanishk Patel";
   p.title = "Context Engineering Inside the Harness";
 
-  const footer = (s, n) => {
-    s.addImage({ data: markPurple, x: MX, y: 5.16, w: 0.26, h: 0.26 * 110 / 146 });
-    s.addText([{ text: "Founsi", options: { color: INK } }, { text: ".", options: { color: PURPLE } }],
-      { x: MX + 0.32, y: 5.12, w: 1.4, h: 0.32, fontFace: SYNE, fontSize: 11, bold: true, margin: 0, valign: "middle" });
-    s.addText(String(n), { x: 9.0, y: 5.12, w: 0.4, h: 0.32, fontFace: MAN, fontSize: 9, color: MID, align: "right", valign: "middle", margin: 0 });
+  const footer = (s, n, dark = false) => {
+    s.addImage({ data: markPurple, x: MX, y: 5.18, w: 0.24, h: 0.24 * 110 / 146 });
+    s.addText([{ text: "Founsi", options: { color: dark ? WHITE : INK } }, { text: ".", options: { color: PURPLE } }],
+      { x: MX + 0.3, y: 5.13, w: 1.4, h: 0.32, fontFace: SYNE, fontSize: 11, bold: true, margin: 0, valign: "middle" });
+    s.addText(String(n), { x: 9.0, y: 5.13, w: 0.4, h: 0.32, fontFace: MAN, fontSize: 9, color: MID, align: "right", valign: "middle", margin: 0 });
   };
-  const overline = (s, t) => s.addText(t.toUpperCase(),
-    { x: MX, y: 0.4, w: 8.8, h: 0.3, fontFace: SYNE, fontSize: 11, bold: true, color: PURPLE, charSpacing: 3, margin: 0 });
+  const overline = (s, t, color = PURPLE) => s.addText(t.toUpperCase(),
+    { x: MX, y: 0.4, w: 8.8, h: 0.3, fontFace: SYNE, fontSize: 11, bold: true, color, charSpacing: 3, margin: 0 });
   const titleTx = (s, t, size = 27) => s.addText(t,
     { x: MX, y: 0.7, w: 8.8, h: 0.95, fontFace: SYNE, fontSize: size, bold: true, color: INK, margin: 0, valign: "top" });
   const content = (ov, t, n, size) => {
@@ -43,177 +46,225 @@ async function png(file, w) {
     overline(s, ov); titleTx(s, t, size); footer(s, n); return s;
   };
   const bullets = (s, items, o = {}) => {
-    const opt = Object.assign({ x: MX, y: 1.75, w: 8.8, h: 3.1, fontFace: MAN, fontSize: 15, color: INK }, o);
+    const opt = Object.assign({ x: MX, y: 1.8, w: 8.8, h: 3.1, fontFace: MAN, fontSize: 15, color: INK }, o);
     s.addText(items.map((it) => {
       const [txt, sub] = Array.isArray(it) ? it : [it, false];
-      return { text: txt, options: { bullet: { indent: 16 }, breakLine: true, paraSpaceAfter: 9, color: sub ? GREY : opt.color, fontSize: sub ? opt.fontSize - 2 : opt.fontSize } };
+      return { text: txt, options: { bullet: { indent: 16 }, breakLine: true, paraSpaceAfter: 8, color: sub ? GREY : opt.color, fontSize: sub ? opt.fontSize - 2 : opt.fontSize } };
     }), opt);
   };
-  const fig = (s, file, o = {}) => s.addImage(Object.assign({ path: path.join(FIG, file), x: 4.55, y: 1.5, w: 5.0, h: 5.0 * 4.2 / 6.2 }, o));
+  const fig = (s, file, o = {}) => exists(path.join(FIG, file)) &&
+    s.addImage(Object.assign({ path: path.join(FIG, file), x: 4.55, y: 1.5, w: 5.0, h: 5.0 * 4.2 / 6.2 }, o));
+  // landscape / project rows: accent bar + bold label + description
+  const rows = (s, items, y0 = 1.75, gap = 0.66) => items.forEach((m, i) => {
+    const y = y0 + i * gap, hot = m[2];
+    s.addShape(p.shapes.RECTANGLE, { x: MX, y, w: 0.1, h: 0.52, fill: { color: hot ? PURPLE : "D4C9FF" } });
+    s.addText([{ text: m[0] + "  ", options: { bold: true, color: hot ? PURPLE : INK, fontSize: 15 } },
+               { text: m[1], options: { color: GREY, fontSize: 12.5 } }],
+      { x: MX + 0.24, y, w: 8.7, h: 0.52, fontFace: MAN, valign: "middle", margin: 0 });
+  });
+  const qrBlock = (s, file, label, x, y, size = 1.35) => {
+    if (exists(path.join(QR, file))) s.addImage({ path: path.join(QR, file), x, y, w: size, h: size });
+    s.addText(label, { x: x - 0.3, y: y + size + 0.05, w: size + 0.6, h: 0.3, fontFace: MAN, fontSize: 11, bold: true, color: INK, align: "center", margin: 0 });
+  };
 
-  // ============ MAIN DECK ============
+  // ============================ MAIN DECK ============================
   // 1 — Title (dark)
   let s = p.addSlide(); s.background = { color: INK };
-  s.addImage({ data: lockupInv, x: MX, y: 0.55, w: 2.5, h: 2.5 * 110 / 692 });
-  s.addText("Context Engineering", { x: MX, y: 1.7, w: 9, h: 0.95, fontFace: SYNE, fontSize: 43, bold: true, color: WHITE, margin: 0 });
-  s.addText("Inside the Harness", { x: MX, y: 2.62, w: 9, h: 0.95, fontFace: SYNE, fontSize: 43, bold: true, color: PURPLE, margin: 0 });
-  s.addText("Keeping a long-running agent from falling apart.", { x: MX, y: 3.7, w: 9, h: 0.4, fontFace: MAN, fontSize: 16, color: ICE, margin: 0 });
-  s.addText([{ text: "Kanishk Patel", options: { bold: true, color: WHITE } },
-             { text: "   ·   Founsi AI · Learn Agentic AI   ·   AI Tinkerers Calgary · June 22, 2026", options: { color: MID } }],
-    { x: MX, y: 4.75, w: 9, h: 0.4, fontFace: MAN, fontSize: 12, margin: 0 });
+  s.addImage({ data: lockupInv, x: MX, y: 0.5, w: 2.4, h: 2.4 * 110 / 692 });
+  s.addText("AI TINKERERS · CALGARY · JUNE 23, 2026", { x: MX, y: 1.55, w: 9, h: 0.3, fontFace: SYNE, fontSize: 11, bold: true, color: PURPLE, charSpacing: 3, margin: 0 });
+  s.addText("Context Engineering", { x: MX, y: 1.95, w: 9, h: 0.9, fontFace: SYNE, fontSize: 42, bold: true, color: WHITE, margin: 0 });
+  s.addText("Inside the Harness", { x: MX, y: 2.85, w: 9, h: 0.9, fontFace: SYNE, fontSize: 42, bold: true, color: PURPLE, margin: 0 });
+  s.addText("Keeping a long-running agent from falling apart.", { x: MX, y: 3.85, w: 9, h: 0.4, fontFace: MAN, fontSize: 16, color: ICE, margin: 0 });
+  s.addText([{ text: "Kanishk Patel", options: { bold: true, color: WHITE } }, { text: "   ·   Founsi AI   ·   Learn Agentic AI", options: { color: MID } }],
+    { x: MX, y: 4.7, w: 9, h: 0.4, fontFace: MAN, fontSize: 12, margin: 0 });
 
-  // 2 — Cold open: the agent that dies
-  s = content("The problem", "Brilliant at 5 steps. Dead at 50.", 2);
+  // 2 — What it is
+  s = content("What it is", "Context engineering, defined.", 2, 26);
+  s.addText([{ text: "Deciding what the model sees on every turn.", options: { bold: true, color: INK } }],
+    { x: MX, y: 1.65, w: 8.8, h: 0.5, fontFace: MAN, fontSize: 19, margin: 0 });
   bullets(s, [
-    "Same model. Same 40-line loop. It drifts, repeats itself, forgets its goal —",
-    ["then hits the hard context limit and the run just dies.", true],
-    "Nothing changed in the model. Something filled up.",
-  ], { y: 1.8, w: 5.0 });
-  s.addShape(p.shapes.RECTANGLE, { x: 6.2, y: 1.9, w: 3.0, h: 0.5, fill: { color: "F7C1C1" } });
-  s.addText("context_length_exceeded", { x: 6.2, y: 1.9, w: 3.0, h: 0.5, fontFace: "Courier New", fontSize: 12, bold: true, color: "A32D2D", align: "center", valign: "middle", margin: 0 });
-  s.addText("step 51 →", { x: 6.2, y: 2.5, w: 3.0, h: 0.3, fontFace: MAN, fontSize: 11, italic: true, color: GREY, align: "center", margin: 0 });
+    "The model is stateless. Each turn, the harness hands it one list of messages — and that list IS the agent's entire mind for that turn.",
+    ["Prompt engineering writes the instruction. Context engineering manages the whole working set: what to keep, summarize, externalize, and drop.", true],
+    "It's the difference between an agent that runs for 5 steps and one that runs for 50.",
+  ], { y: 2.35 });
 
-  // 3 — The window is a budget
-  s = content("The reframe", "The context window isn't storage. It's a budget.", 3, 26);
+  // 3 — Why it matters
+  s = content("Why it matters", "Brilliant at 5 steps. Dead at 50.", 3, 26);
   bullets(s, [
-    "The model is stateless — every turn you re-send the entire history.",
-    "A 50-step run pays for its history ~50 times: cost climbs, latency climbs,",
-    ["and recall drops — models read the middle of a long context worst.", true],
-    "A bigger window raises the ceiling. It doesn't bend the curve.",
-  ], { y: 1.8 });
+    "Cost scales — you re-send the whole history every single turn.",
+    "Latency scales — time-to-first-token grows with prompt length.",
+    "Attention dilutes — the model gets lost in the middle.",
+    ["Then it dies — drifts, repeats, forgets the goal, hits the hard limit.", true],
+  ], { y: 1.85, w: 5.1 });
+  s.addShape(p.shapes.RECTANGLE, { x: 6.3, y: 2.2, w: 3.0, h: 0.55, fill: { color: "F7C1C1" } });
+  s.addText("context_length_exceeded", { x: 6.3, y: 2.2, w: 3.0, h: 0.55, fontFace: MONO, fontSize: 12, bold: true, color: "A32D2D", align: "center", valign: "middle", margin: 0 });
+  s.addText("step 51 →", { x: 6.3, y: 2.85, w: 3.0, h: 0.3, fontFace: MAN, fontSize: 11, italic: true, color: GREY, align: "center", margin: 0 });
 
-  // 4 — The one sentence (statement)
+  // 4 — The reframe
   s = p.addSlide(); s.background = { color: BG };
-  s.addText([{ text: "The model is a commodity you ", options: { color: INK } }, { text: "rent", options: { color: PDARK, italic: true } }, { text: ".", options: { color: INK } }],
-    { x: 0.8, y: 1.7, w: 8.4, h: 0.9, fontFace: SYNE, fontSize: 34, bold: true, align: "center", margin: 0 });
-  s.addText([{ text: "The harness is the part you ", options: { color: INK } }, { text: "build", options: { color: PURPLE, italic: true } }, { text: ".", options: { color: INK } }],
-    { x: 0.8, y: 2.7, w: 8.4, h: 0.9, fontFace: SYNE, fontSize: 34, bold: true, align: "center", margin: 0 });
+  overline(s, "The reframe");
+  s.addText([{ text: "The context window is a ", options: { color: INK } }, { text: "budget", options: { color: PURPLE, italic: true } }, { text: ",", options: { color: INK } }],
+    { x: 0.8, y: 1.85, w: 8.4, h: 0.85, fontFace: SYNE, fontSize: 33, bold: true, align: "center", margin: 0 });
+  s.addText([{ text: "not a ", options: { color: INK } }, { text: "backpack", options: { color: GREY, italic: true } }, { text: ".", options: { color: INK } }],
+    { x: 0.8, y: 2.7, w: 8.4, h: 0.85, fontFace: SYNE, fontSize: 33, bold: true, align: "center", margin: 0 });
+  s.addText("A bigger window raises the ceiling, not the curve. Engineer the working set and keep it roughly constant — no matter how long the run.",
+    { x: 1.4, y: 3.75, w: 7.2, h: 0.7, fontFace: MAN, fontSize: 14, color: GREY, align: "center", margin: 0 });
   footer(s, 4);
 
-  // 5 — The list is the mind
-  s = content("Mental model", "The list is the mind.", 5);
-  bullets(s, [
-    "The model remembers nothing between calls.",
-    "Every turn, the harness rebuilds one list of messages — and that list IS the agent's entire mind for that turn.",
-    ["If the agent forgot its goal, the goal wasn't in the list. There's no magic.", true],
-    "messages() = pinned + body. The whole game is what goes in those two lists.",
+  // 5 — The landscape
+  s = content("What exists · the landscape", "Everyone is fighting the window.", 5, 25);
+  rows(s, [
+    ["Anthropic", "names the moves — compaction, structured note-taking, “context rot.”"],
+    ["Cognition (Devin)", "“context engineering is the #1 job”; don't fragment it across agents."],
+    ["LangChain · LlamaIndex", "memory abstractions — summary buffers, vector memory."],
+    ["MemGPT · Letta", "treat the window like RAM; page facts to an external store."],
+    ["RAG (Lewis, 2020)", "retrieve from a store instead of stuffing the prompt."],
   ]);
 
-  // 6 — Five moves
-  s = content("The map", "Five moves. One matters tonight.", 6);
-  const moves = [["Pin", "goal + system prompt, never dropped"], ["Truncate", "cap oversized tool outputs"],
-    ["Compact", "summarize the stale middle, drop raw turns"], ["Externalize", "findings live in a file, not the window"],
-    ["Cap", "hard limits on steps / tokens / dollars"]];
-  moves.forEach((m, i) => {
-    const y = 1.8 + i * 0.62, hot = m[0] === "Compact";
-    s.addShape(p.shapes.RECTANGLE, { x: MX, y, w: 0.12, h: 0.5, fill: { color: hot ? PURPLE : "D4C9FF" } });
-    s.addText([{ text: m[0] + "   ", options: { bold: true, color: hot ? PURPLE : INK, fontSize: 16 } },
-               { text: m[1], options: { color: GREY, fontSize: 13 } }],
-      { x: MX + 0.25, y, w: 8.5, h: 0.5, fontFace: MAN, valign: "middle", margin: 0 });
-  });
-
-  // 7 — Compact deeply
-  s = content("The heart", "Compact, deeply.", 7);
+  // 6 — The gap
+  s = content("The gap", "Everyone compacts. Nobody measured which way is best.", 6, 23);
   bullets(s, [
-    "Over budget? Summarize the stale middle into one dense note; drop the raw turns.",
-    "Why the middle? It's the low-attention zone anyway (lost-in-the-middle).",
+    "Prior work compresses a static prompt or RAG passages — to cut latency.",
+    "The policy that ships in real agents — “summarize the stale middle” — is applied to an evolving transcript, and is essentially unmeasured against its alternatives.",
+    ["Which way of forgetting preserves the most facts per token? That's the open question.", true],
+    "So I built a harness to measure it.",
+  ]);
+
+  // 7 — The harness
+  s = content("What I'm building", "The loop is trivial. The harness is the point.", 7, 25);
+  rows(s, [
+    ["Pin", "goal + system prompt — never dropped", false],
+    ["Truncate", "cap oversized tool outputs before they enter", false],
+    ["Compact", "summarize the stale middle, drop the raw turns", true],
+    ["Externalize", "findings live in a file, not the window", false],
+    ["Cap", "hard limits on steps / tokens / dollars", false],
+  ]);
+  s.addText("The model is a commodity you rent. These five moves are the part you build.",
+    { x: MX, y: 5.0, w: 8.8, h: 0.3, fontFace: MAN, fontSize: 12, italic: true, color: GREY, margin: 0 });
+
+  // 8 — Compact deeply
+  s = content("The heart", "Compact: summarize the middle, drop the raw turns.", 8, 24);
+  bullets(s, [
+    "Over budget? Replace the stale middle with one dense summary; throw the raw turns away.",
+    "Why the middle? It's the low-attention zone anyway — lost in the middle.",
     ["The gotcha: never split a tool-call from its result — real APIs reject that transcript.", true],
     "Lossy on purpose — safe only because findings were externalized to disk.",
   ]);
 
-  // 8 — Live demo
+  // 9 — Live demo
   s = p.addSlide(); s.background = { color: INK };
-  s.addText("LIVE DEMO", { x: MX, y: 2.0, w: 9, h: 0.9, fontFace: SYNE, fontSize: 40, bold: true, color: WHITE, margin: 0 });
-  s.addText("Watch the context bar grow, cross the threshold, ⚙ COMPACT, snap back — and keep going.",
-    { x: MX, y: 3.0, w: 8.6, h: 0.6, fontFace: MAN, fontSize: 15, color: ICE, margin: 0 });
-  s.addText("python run.py  ·  cat run/notes.md", { x: MX, y: 3.7, w: 9, h: 0.4, fontFace: "Courier New", fontSize: 14, color: PURPLE, margin: 0 });
-  footer(s, 8);
+  s.addText("LIVE DEMO", { x: MX, y: 1.95, w: 9, h: 0.9, fontFace: SYNE, fontSize: 40, bold: true, color: WHITE, margin: 0 });
+  s.addText("Watch the context bar grow, cross the threshold, COMPACT, snap back — and keep going.",
+    { x: MX, y: 2.95, w: 8.6, h: 0.6, fontFace: MAN, fontSize: 15, color: ICE, margin: 0 });
+  s.addText("python run.py     ·     cat run/notes.md", { x: MX, y: 3.65, w: 9, h: 0.4, fontFace: MONO, fontSize: 14, color: PURPLE, margin: 0 });
+  footer(s, 9, true);
 
-  // 9 — The open question (+ figure)
-  s = content("Zero to one", "Which way of forgetting loses least?", 9, 25);
+  // 10 — The research question
+  s = content("Zero to one", "The compaction bake-off.", 10, 26);
   bullets(s, [
-    "Compaction is lossy — so which policy preserves the most facts per token?",
-    "Truncate · recency · importance · semantic.",
-    ["I plant checkable facts and count how many survive each policy.", true],
-    "Early result, right →",
-  ], { y: 1.7, w: 3.9 });
-  fig(s, "EXP-001_pareto_v1.png", { x: 4.55, y: 1.45, w: 5.0, h: 3.39 });
+    "Four ways of forgetting: truncate · recency · importance · semantic.",
+    "Plant checkable “needle” facts in the sources; count how many survive each policy.",
+    ["Metric: needle recall per token — objective, no LLM-judge.", true],
+    "Free NVIDIA models, every prompt + result saved. Reproducible.",
+  ], { y: 1.8, w: 4.0 });
+  fig(s, "EXP-001_pareto_v1.png", { x: 4.7, y: 1.5, w: 4.9, h: 3.32 });
 
-  // 10 — Swap the brain + clone
-  s = content("Yours to build", "Swap the brain. Clone the harness.", 10, 25);
+  // 11 — Early result
+  s = content("Early result", "Truncation is the floor. Summaries win — at a cost.", 11, 24);
+  fig(s, "EXP-001_recall_by_policy_v1.png", { x: 0.7, y: 1.5, w: 5.3, h: 3.59 });
   bullets(s, [
-    "Provider-agnostic via litellm — one flag swaps Claude / GPT / local Llama.",
-    "Runs offline with no API key (FakeLLM).",
-    "github.com/kanishkpatel1995/agent-harness",
-    ["The model is rented. The harness is yours.", true],
-  ]);
+    "Truncate: cheapest, loses most.",
+    "Summary policies preserve ~2-3x more facts.",
+    ["semantic edges it at B*=1000 (8b dev).", true],
+    "70b confirmation is running next.",
+  ], { x: 6.2, y: 1.7, w: 3.3, fontSize: 13 });
 
-  // ============ APPENDIX ============
-  // 11 — Appendix divider
+  // 12 — Close
   s = p.addSlide(); s.background = { color: INK };
-  s.addText("APPENDIX", { x: MX, y: 1.9, w: 9, h: 0.6, fontFace: SYNE, fontSize: 13, bold: true, color: PURPLE, charSpacing: 4, margin: 0 });
-  s.addText("The full trace", { x: MX, y: 2.4, w: 9, h: 0.9, fontFace: SYNE, fontSize: 38, bold: true, color: WHITE, margin: 0 });
-  s.addText("Every experiment: hypothesis · assumptions · method · figures · results · threats.",
+  s.addText([{ text: "The model is a commodity you ", options: { color: WHITE } }, { text: "rent", options: { color: ICE, italic: true } }, { text: ".", options: { color: WHITE } }],
+    { x: 0.8, y: 1.7, w: 8.4, h: 0.8, fontFace: SYNE, fontSize: 30, bold: true, align: "center", margin: 0 });
+  s.addText([{ text: "The harness is the part you ", options: { color: WHITE } }, { text: "build", options: { color: PURPLE, italic: true } }, { text: ".", options: { color: WHITE } }],
+    { x: 0.8, y: 2.55, w: 8.4, h: 0.8, fontFace: SYNE, fontSize: 30, bold: true, align: "center", margin: 0 });
+  qrBlock(s, "qr_repo.png", "Clone the repo", 4.35, 3.55, 1.1);
+  s.addText("github.com/kanishkpatel1995/agent-harness", { x: 2.8, y: 4.78, w: 4.4, h: 0.3, fontFace: MONO, fontSize: 10, color: ICE, align: "center", margin: 0 });
+  footer(s, 12, true);
+
+  // ============================ APPENDIX ============================
+  // 13 — divider
+  s = p.addSlide(); s.background = { color: INK };
+  s.addText("APPENDIX", { x: MX, y: 1.9, w: 9, h: 0.5, fontFace: SYNE, fontSize: 13, bold: true, color: PURPLE, charSpacing: 4, margin: 0 });
+  s.addText("The whole project, and every experiment", { x: MX, y: 2.35, w: 9, h: 0.9, fontFace: SYNE, fontSize: 34, bold: true, color: WHITE, margin: 0 });
+  s.addText("What's in the repo · the protocol · EXP-001 results · EXP-002 plan · roadmap.",
     { x: MX, y: 3.4, w: 8.8, h: 0.5, fontFace: MAN, fontSize: 14, color: ICE, margin: 0 });
-  footer(s, 11);
+  footer(s, 13, true);
 
-  const ap = 12;  // appendix uses smaller fonts (density is fine here)
-  const small = { fontSize: 13, y: 1.6 };
+  // 14 — Project map (file/folder tree)
+  s = content("How to read this repo", "What's in the project", 14, 25);
+  const tree = [
+    "agent-harness/",
+    "├─ harness/        the teaching harness: the loop + ContextManager",
+    "├─ experiments/    the research: compaction bake-off (bench/ pkg)",
+    "│   ├─ bench/       config · policies · window · runner · analyze",
+    "│   └─ runs/        one folder per run: manifest + prompts + results",
+    "├─ docs/research-track/   curriculum · paper · literature · protocol",
+    "├─ presentation/   this deck + Founsi brand + figures",
+    "└─ tests/          11 offline tests (no API key needed)",
+  ];
+  s.addShape(p.shapes.RECTANGLE, { x: MX, y: 1.65, w: 8.8, h: 2.7, fill: { color: "F4F2F8" }, line: { color: "D4C9FF", width: 1 } });
+  s.addText(tree.map((t) => ({ text: t, options: { breakLine: true } })),
+    { x: MX + 0.2, y: 1.8, w: 8.5, h: 2.4, fontFace: MONO, fontSize: 12.5, color: INK, margin: 0, lineSpacingMultiple: 1.18 });
+  s.addText("Start at harness/loop.py (the agent loop), then harness/context.py (the heart).",
+    { x: MX, y: 4.5, w: 8.8, h: 0.4, fontFace: MAN, fontSize: 12, italic: true, color: GREY, margin: 0 });
 
-  // 12 — EXP-001 hypothesis + assumptions
-  s = content("EXP-001 · compaction-bakeoff", "Hypothesis & assumptions", ap);
-  s.addText("Hypothesis", { x: MX, y: 1.55, w: 8.8, h: 0.3, fontFace: MAN, fontSize: 13, bold: true, color: PURPLE, margin: 0 });
-  s.addText("Under a fixed token budget, summary-based compaction (recency / importance / semantic) preserves more needle-facts per token than truncation, and there is a budget B* trading compaction fact-loss against lost-in-the-middle.",
-    { x: MX, y: 1.85, w: 8.8, h: 0.8, fontFace: MAN, fontSize: 13, color: INK, margin: 0 });
-  s.addText("Assumptions", { x: MX, y: 2.75, w: 8.8, h: 0.3, fontFace: MAN, fontSize: 13, bold: true, color: PURPLE, margin: 0 });
+  // 15 — How an experiment is recorded (the protocol)
+  s = content("How we keep it honest", "Every experiment is a traceable run", 15, 24);
+  bullets(s, [
+    "Hypothesis + assumptions first — stated before any code is written.",
+    "Each run writes experiments/runs/EXP-NNN__slug__<UTC>/ with:",
+    ["manifest.yaml (config + git sha + deps) · prompts.jsonl (every LLM call) · results.csv · figures/ · README.", true],
+    "Figures in publication style (figstyle.py); rate-limited + cached so reruns are free.",
+    "The bar: a stranger can clone the repo and reproduce the figure.",
+  ], { fontSize: 14 });
+
+  // 16 — EXP-001 hypothesis + assumptions
+  s = content("EXP-001 · compaction-bakeoff", "Hypothesis & assumptions", 16, 25);
+  s.addText("Hypothesis", { x: MX, y: 1.5, w: 8.8, h: 0.3, fontFace: MAN, fontSize: 13, bold: true, color: PURPLE, margin: 0 });
+  s.addText("Under a fixed token budget, summary-based compaction (recency / importance / semantic) preserves more needle-facts per token than truncation, and a budget B* trades fact-loss against lost-in-the-middle.",
+    { x: MX, y: 1.8, w: 8.8, h: 0.75, fontFace: MAN, fontSize: 13, color: INK, margin: 0 });
+  s.addText("Assumptions", { x: MX, y: 2.7, w: 8.8, h: 0.3, fontFace: MAN, fontSize: 13, bold: true, color: PURPLE, margin: 0 });
   bullets(s, [
     "Needle-fact recall is a valid proxy for task-relevant information retention.",
     "approx_tokens (~4 chars/token) is acceptable for budget gating.",
     "The summarizer model is held fixed across policies within a run.",
     "Coined needle tokens are recoverable only from context, not model priors.",
     "Synthetic transcripts approximate real agent compaction dynamics.",
-  ], { y: 3.05, fontSize: 12.5 });
+  ], { y: 3.0, fontSize: 12 });
 
-  // 13 — EXP-001 method
-  s = content("EXP-001 · method", "Mode A — the controlled probe", ap, 25);
+  // 17 — EXP-001 method
+  s = content("EXP-001 · method", "Mode A — the controlled probe", 17, 25);
   bullets(s, [
     "Build a needle-bearing transcript (deterministic, seeded) up to run-length L.",
-    "Compact it under budget B with each policy — real model writes the summaries.",
+    "Compact it under budget B with each policy — the real model writes the summaries.",
     "Probe: ask the model to recover the planted facts from the compacted window.",
-    "Metrics — fidelity (literal survival, scores the policy) vs probe (model recall@length); cost in tokens billed.",
-    "Free NVIDIA NIM (llama-3.1-8b dev); paced + backed-off + cached; every prompt saved to prompts.jsonl.",
+    "Two metrics — fidelity (literal survival, scores the policy) vs probe (model recall@length).",
+    "8b dev model on free NVIDIA NIM; paced + backed-off + cached; every prompt saved.",
   ], { fontSize: 13.5 });
 
-  // 14 — Results: Pareto
-  s = content("EXP-001 · results", "Quality vs cost by policy", ap, 25);
-  fig(s, "EXP-001_pareto_v1.png", { x: 0.7, y: 1.5, w: 5.4, h: 3.66 });
-  bullets(s, [
-    "Truncate is the floor: cheapest, ~0.2 recall.",
-    "Summary policies cluster higher (~0.4–0.5).",
-    ["semantic edges it at B*=1000 (8b dev).", true],
-    "Note: 8b under-reads — 70b run is next.",
-  ], { x: 6.3, y: 1.7, w: 3.2, fontSize: 13 });
+  // 18-20 — results figures
+  s = content("EXP-001 · results", "Quality vs cost by policy", 18, 25);
+  fig(s, "EXP-001_pareto_v1.png", { x: 0.7, y: 1.5, w: 5.3, h: 3.59 });
+  bullets(s, [["Upper-left wins: more recall per token.", true], "Truncate is the floor.", "Summary policies cluster higher.", "semantic best at B*=1000 (8b)."], { x: 6.2, y: 1.7, w: 3.3, fontSize: 13 });
 
-  // 15 — Results: recall by policy
-  s = content("EXP-001 · results", "Needle recall by policy & budget", ap, 25);
-  fig(s, "EXP-001_recall_by_policy_v1.png", { x: 0.7, y: 1.5, w: 5.4, h: 3.66 });
-  bullets(s, [
-    "Recall reported as a fraction (poolable across needle counts).",
-    "Error bars = sd across seeds (now honest — seeds vary layout).",
-    ["importance is tail-bound: can't reach small budgets with keep=2.", true],
-  ], { x: 6.3, y: 1.7, w: 3.2, fontSize: 13 });
+  s = content("EXP-001 · results", "Needle recall by policy & budget", 19, 24);
+  fig(s, "EXP-001_recall_by_policy_v1.png", { x: 0.7, y: 1.5, w: 5.3, h: 3.59 });
+  bullets(s, ["Recall as a fraction (poolable across needle counts).", ["Error bars = sd across seeds (honest now).", true], "importance is tail-bound at small budgets."], { x: 6.2, y: 1.7, w: 3.3, fontSize: 13 });
 
-  // 16 — Results: baseline + overflow
-  s = content("EXP-001 · results", "No-compaction baseline & the wall", ap, 24);
-  fig(s, "EXP-001_baseline_recall_v1.png", { x: 0.7, y: 1.5, w: 5.4, h: 3.66 });
-  bullets(s, [
-    "Baseline grows the raw context and measures recall vs length.",
-    "When raw tokens exceed the model's max window → context_overflow:",
-    ["the agent dies. Compaction is the fix; we measure the deaths it prevents.", true],
-  ], { x: 6.3, y: 1.7, w: 3.2, fontSize: 13 });
+  s = content("EXP-001 · results", "No-compaction baseline & the wall", 20, 23);
+  fig(s, "EXP-001_baseline_recall_v1.png", { x: 0.7, y: 1.5, w: 5.3, h: 3.59 });
+  bullets(s, ["Baseline grows raw context, measures recall vs length.", ["Exceed the model's max window -> context_overflow: the agent dies.", true], "Compaction is the fix; we measure the deaths it prevents."], { x: 6.2, y: 1.7, w: 3.3, fontSize: 13 });
 
-  // 17 — Threats
-  s = content("EXP-001 · threats to validity", "What could make this wrong", ap, 25);
+  // 21 — threats
+  s = content("EXP-001 · threats to validity", "What could make this wrong", 21, 25);
   bullets(s, [
     "Synthetic data + simulated agent — not a live decision-making run (Mode B is next).",
     "Needle recall is a proxy for diffuse understanding; score normalization is a choice.",
@@ -221,18 +272,29 @@ async function png(file, w) {
     "Single task domain; importance/semantic are crude heuristics, not embeddings.",
   ], { fontSize: 13.5 });
 
-  // 18 — Roadmap
-  s = content("Where this goes", "Roadmap", ap, 27);
+  // 22 — EXP-002 plan
+  s = content("EXP-002 · length-degradation (in progress)", "Does compaction beat raw context?", 22, 24);
+  s.addText("Hypothesis", { x: MX, y: 1.5, w: 8.8, h: 0.3, fontFace: MAN, fontSize: 13, bold: true, color: PURPLE, margin: 0 });
+  s.addText("As raw context grows, the no-compaction baseline's recall degrades (lost-in-the-middle); fixed-budget compaction holds recall higher at long lengths — the crossover is where compaction becomes net-positive.",
+    { x: MX, y: 1.8, w: 8.8, h: 0.75, fontFace: MAN, fontSize: 13, color: INK, margin: 0 });
   bullets(s, [
-    "EXP-002 — the 70b run: real numbers, the 128k ceiling, find B*.",
-    "EXP-003 — lost-in-the-middle: recall by needle depth (data already logged).",
+    "Design: fast 8b, fixed budget (2000), run-lengths {8, 16, 32, 48} (~3k-21k tokens), 3 seeds.",
+    "Expectation: baseline recall drops with length; recency stays flatter; they cross.",
+    ["Success = a measured crossover point — compaction as recall-positive, not just survival.", true],
+  ], { y: 2.7, fontSize: 13 });
+
+  // 23 — roadmap
+  s = content("Where this goes", "Roadmap", 23, 27);
+  bullets(s, [
+    "EXP-002 — length degradation (running) · EXP-003 — 70b confirmation, the 128k ceiling.",
+    "Lost-in-the-middle: recall by needle depth (data already logged).",
     "Real eval datasets (RULER / LongBench / BABILong) via HF datasets.",
     "LangChain summary-memory as a baseline arm to beat.",
-    "Mode B — the live agent loop for ecological validity. Then the paper.",
+    "Mode B — the live agent loop. Then the paper.",
   ], { fontSize: 13.5 });
 
-  // 19 — References
-  s = content("References", "The literature this stands on", ap, 26);
+  // 24 — references
+  s = content("References", "The literature this stands on", 24, 26);
   bullets(s, [
     "Lost in the Middle — Liu et al., arXiv:2307.03172.",
     "RULER — Hsieh et al., 2404.06654 · HELMET — Yen et al., 2410.02694.",
@@ -241,6 +303,16 @@ async function png(file, w) {
     "Effective context engineering for AI agents — Anthropic, 2025.",
   ], { fontSize: 13, color: GREY });
 
+  // 25 — Find me (QR codes)
+  s = p.addSlide(); s.background = { color: INK };
+  s.addText("FIND ME", { x: MX, y: 0.6, w: 9, h: 0.4, fontFace: SYNE, fontSize: 12, bold: true, color: PURPLE, charSpacing: 4, margin: 0 });
+  s.addText("Clone it. Read the write-ups. Say hi.", { x: MX, y: 1.0, w: 9, h: 0.7, fontFace: SYNE, fontSize: 30, bold: true, color: WHITE, margin: 0 });
+  qrBlock(s, "qr_repo.png", "Repo", 1.2, 2.2, 1.5);
+  qrBlock(s, "qr_newsletter.png", "Learn Agentic AI", 4.25, 2.2, 1.5);
+  qrBlock(s, "qr_x.png", "X · @above_almighty", 7.3, 2.2, 1.5);
+  s.addText("LinkedIn QR — add your URL (placeholder)", { x: MX, y: 4.55, w: 9, h: 0.3, fontFace: MAN, fontSize: 11, italic: true, color: MID, align: "center", margin: 0 });
+  footer(s, 25, true);
+
   await p.writeFile({ fileName: path.join(__dirname, "founsi-context-engineering.pptx") });
-  console.log("wrote presentation/founsi-context-engineering.pptx");
+  console.log("wrote presentation/founsi-context-engineering.pptx (25 slides)");
 })();
