@@ -74,7 +74,7 @@ to go deeper. Grouped by what they're good for.
 
 - **Learn Agentic AI** (newsletter) — https://learnagentic.substack.com
 - The talk's whole argument is implemented in this repo:
-  https://github.com/patelkanishk1995/agent-harness — read `harness/loop.py`,
+  https://github.com/kanishkpatel1995/agent-harness — read `harness/loop.py`,
   then `harness/context.py`.
 
 ---
