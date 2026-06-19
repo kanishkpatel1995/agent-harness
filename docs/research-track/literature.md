@@ -282,43 +282,166 @@ peer-reviewed**; cite them for framing and provenance, not for evidence.
 
 ---
 
-## 7. The gap this work fills (the positioning argument)
+## 7. Applied grounding — research agents & the architecture debate
 
-State this plainly in the paper's introduction; it is what makes the bake-off a
-contribution rather than a tutorial:
+*(Added June 2026. This section moves the work from "needle recall" (the
+mechanism) to "end-task success" (the impact) — see §9.)*
 
-> Prior compression work (§4) overwhelmingly (a) targets a **single static
-> prompt** or **retrieved RAG passages**, (b) optimizes **inference
-> efficiency/latency**, and (c) operates at the **token, activation, or KV-cache
-> level**, often requiring **finetuning**. Memory-augmented agents (§3) show that
-> **externalization** works but treat in-window compaction as a side concern.
-> Meanwhile, the policy that actually ships in agent harnesses — **summarize the
-> stale middle, keep the recent tail** — is applied at the **message/turn level**
-> on an **evolving multi-turn transcript**, training-free, and is **essentially
-> unmeasured against its alternatives** under an end-task metric.
+**The research-agent landscape.** Every shipped "deep research" agent solves the
+context problem, but each commits to *one* technique and **none measures whether
+theirs is best**. Three camps:
 
-Our contribution is therefore narrow and concrete:
+- **Multi-agent isolation** ("compress by giving each subtopic its own window"):
+  Anthropic's Research system (*"Subagents facilitate compression by operating in
+  parallel with their own context windows"*; multi-agent **+90.2%** over
+  single-agent but **~15× more tokens**, and *"token usage alone explains 80% of
+  the variance"*) — https://www.anthropic.com/engineering/built-multi-agent-research-system ;
+  LangChain Open Deep Research (https://www.langchain.com/blog/open-deep-research) ;
+  deepagents (https://github.com/langchain-ai/deepagents) ; Stanford STORM
+  (arXiv:[2402.14207](https://arxiv.org/abs/2402.14207)).
+- **Long-context ± RAG tiering**: Gemini Deep Research (1–2M context, RAG
+  fallback), OpenAI Deep Research (RL-trained, in-context), GPT Researcher
+  (vector store; https://github.com/assafelovic/gpt-researcher), Khoj.
+- **File/scratchpad + distilled state**: Manus (*"file system as the ultimate
+  context"* + `todo.md` recitation; https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus),
+  HF smolagents (code-as-action, ~30% fewer tokens), dzhng/deep-research
+  (carry-forward "learnings" list).
 
-1. **A controlled comparison** of four message-level compaction policies
-   (truncate / recency-summary / importance-ranked / semantic) holding the token
-   budget fixed.
-2. **An objective, reproducible metric** — needle-fact recall per token —
-   designed around the §2 critique that single-needle scores mislead and the §2
-   evidence that LLM-judges are biased.
-3. **The externalized scratchpad as control**, operationalizing the §3 insight so
-   we can separate "did the *policy* preserve it" from "did the *store* preserve
-   it."
-4. **A finding about run-length**: where (if anywhere) the fancy policies overtake
-   the cheap recency-summary default, as compaction events accumulate.
+**The unresolved debate (our territory).** Multi-agent isolation vs single-thread
+compaction:
+- *Pro-isolation* — Anthropic (above).
+- *Pro-continuity* — Cognition, *Don't Build Multi-Agents*
+  (https://cognition.ai/blog/dont-build-multi-agents): parallel subagents make
+  *conflicting decisions*; keep one continuous thread + a **dedicated fine-tuned
+  compactor**.
+- *Anthropic itself calls it open*: *"it's still unclear whether a single,
+  general-purpose agent performs best... or a multi-agent architecture"* and
+  *"compaction isn't sufficient"* (https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents).
 
-The honest expected result (worth stating up front): **externalization likely
-dominates compaction-policy choice** — which would make the headline *"compaction
-policy is second-order; externalize is the move that matters,"* a cleaner and
-more useful claim than any single-policy win, and one fully consistent with §3.
+**The empty cell.** Every *controlled* study pits multi-agent against a **naive**
+single agent — Kim et al., *Science of Scaling Agent Systems*
+(arXiv:[2512.08296](https://arxiv.org/abs/2512.08296), 260 configs); Tran & Kiela
+(arXiv:[2604.02460](https://arxiv.org/abs/2604.02460)); LangChain's benchmark
+(https://www.langchain.com/blog/benchmarking-multi-agent-architectures). **None
+pits multi-agent isolation against a *compaction-engineered* single agent on the
+same task/model with cost normalized.** That cell — the one the debate hinges on —
+is empty.
+
+**What prior applied results already show** (our baselines):
+- **MemGPT** ([2310.08560](https://arxiv.org/abs/2310.08560)): paged memory **92.5%**
+  vs naive summary **32.1%** (DMR) — *bad compaction destroys task success.*
+- **Mem0** ([2504.19413](https://arxiv.org/abs/2504.19413)): **66.9%** vs
+  full-context **72.9%** on LoCoMo at **~90% fewer tokens** — *good compaction ≈
+  full-context, cheaply* (the Pareto win).
+- **ACON** ([2510.00615](https://arxiv.org/abs/2510.00615)): **−26–54% tokens** while
+  holding/raising success; the closest prior art (policies on real agent tasks
+  with a Pareto, but tied to *their* optimizer).
+- **Context-Folding** ([2510.11967](https://arxiv.org/abs/2510.11967)): 10× smaller
+  active context, *beats summarization-based management.*
+- **MEM1** ([2506.15841](https://arxiv.org/abs/2506.15841)): 3.7× lower peak tokens,
+  accuracy *surpasses* baseline as horizon grows.
+- **SCM** ([2304.13343](https://arxiv.org/abs/2304.13343)): stores *both* raw and
+  summary, chooses per query — the closest existing "reversible-hybrid" (but not
+  isolated/measured as one in-agent policy vs lossy-only).
+
+**Applied task & dataset choices** (verified for free-tier feasibility):
+- **FRAMES** (Google, [2409.12941](https://arxiv.org/abs/2409.12941)) — 824 multi-hop
+  questions, 2–15 Wikipedia articles each, auto-graded LLM-rater (0.96 vs human),
+  ships gold URLs → a true tool-using research-QA task that overflows context.
+- **LoCoMo** ([2402.17753](https://arxiv.org/abs/2402.17753)) — 10 long conversations,
+  ~1,986 Q; the de-facto memory benchmark (Mem0/MemGPT use it).
+- **τ²-bench** ([2406.12045](https://arxiv.org/abs/2406.12045)) — tool-agent, DB-state
+  success, pip-only + LiteLLM→NIM; a heavier stretch domain.
 
 ---
 
-## 8. Reading map — which unit reads what
+## 8. Model-, size-, and reasoning-dependence (why "model" is a variable)
+
+*(Added June 2026. The single most important design finding: the **best policy
+depends on the model**, so model family/size/reasoning must be an experimental
+axis, not a fixed choice.)*
+
+- **Effective context varies wildly by family** — NoLiMa
+  ([2502.05167](https://arxiv.org/abs/2502.05167)): same task, **Llama 3.3 70B
+  effective length ≈ 2K** (97→43 by 32K) vs **GPT-4.1 ≈ 16K**. RULER
+  ([2404.06654](https://arxiv.org/abs/2404.06654)): claimed-vs-effective gap **1× to
+  >30×** (ChatGLM-6B 32×; Mistral-7B collapses; Llama/Qwen hold). HELMET
+  ([2410.02694](https://arxiv.org/abs/2410.02694)): *no clear winner across
+  categories*, and synthetic NIAH does not predict downstream rankings.
+- **Compaction's value is size-dependent** — ACON
+  ([2510.00615](https://arxiv.org/abs/2510.00615)): the *same* compression gives
+  small models (Qwen-14B) **up to +46%** but leaves large models flat;
+  *"the 70B model is much less sensitive to compression than 8B"*
+  ([2407.08892](https://arxiv.org/pdf/2407.08892)).
+- **Method rankings FLIP across backbones** — ~**70% of models change rank** when
+  the backbone changes; *"the best method depends on the backbone."* → A
+  model-blind policy is mis-tuned for half a fleet. (Cross-backbone memory
+  evaluations, e.g. [2602.11243](https://arxiv.org/html/2602.11243v2); Mem0 across
+  backbones, [2504.19413](https://arxiv.org/abs/2504.19413).)
+- **Compression tolerance scales with model strength** — LongLLMLingua
+  ([2310.06839](https://arxiv.org/abs/2310.06839)): GPT-3.5 tolerates 4–20×; weaker
+  targets break earlier.
+- **Reasoning models are a third axis** — DeepSeek-R1 holds long context better
+  (RULER avg 94.95; 85 @128K) yet o1 still shows *"memory drift"*
+  ([2510.03611](https://arxiv.org/abs/2510.03611)); reasoning models burn context
+  faster (long CoT) → hit the wall sooner → compaction *more* valuable but riskier
+  (truncation severs mid-CoT). CoT-compression literature is reasoning-specific:
+  TokenSkip ([2502.12067](https://arxiv.org/abs/2502.12067), 40% fewer tokens at
+  <0.4% loss), Chain-of-Draft ([2502.18600](https://arxiv.org/abs/2502.18600)).
+  **Free on NVIDIA NIM:** `deepseek-r1-distill-llama-70b` (same backbone as our
+  70B → clean reasoning-vs-standard A/B), `nemotron-nano-9b-v2`. *(QwQ-32B
+  deprecated on NIM 2026-04-15 — don't use.)*
+
+**Verdict:** model (family × size × reasoning) **must** be a swept variable. This
+is a gift, not a complication — it converts "which policy wins" (possibly mushy)
+into **"which policy wins for which model"** — a decision map, and a contrarian,
+publishable finding in itself: *the optimal context strategy does not transfer
+across model classes.*
+
+---
+
+## 9. The gap this work fills (updated positioning)
+
+State this in the paper's introduction:
+
+> Prior compression work (§4) targets a **static prompt** or **RAG passages**,
+> optimizes **latency**, at the **token/activation/KV level**, often with
+> **finetuning**. Memory agents (§3) show **externalization** works but treat
+> in-window compaction as a side concern. The applied agents (§7) each pick **one**
+> strategy and never compare. And the multi-agent-vs-compaction debate (§7) is
+> argued from architecture opinion — its **controlled comparison is unmeasured**.
+> Critically, the **best policy depends on the model** (§8), yet no study sweeps it.
+
+**Our contribution — four concrete pillars:**
+
+1. **An open, controlled, multi-policy bake-off** under one harness, same
+   model/task/budget, swapping *all* the camps as policies: truncate ·
+   recency-summary · importance · semantic · **externalize** · **RAG-retrieve** ·
+   **sub-agent isolation** · and our novel **reversible-hybrid** (summarize *and*
+   keep the raw span retrievable — §7's SCM lifted into one in-agent policy and
+   measured head-to-head vs lossy-only).
+2. **End-task success, not probe recall** — answer accuracy per token on a real
+   research-QA task (FRAMES) and conversational memory (LoCoMo); a quality-vs-cost
+   **Pareto by policy family**. The needle-recall work (EXP-001/002) becomes the
+   *mechanism* layer that explains the *impact* layer.
+3. **Model as a swept axis** (§8) — Llama-8B, Llama-70B, R1-distill-70B (reasoning)
+   — yielding a **per-model decision map** and testing whether the winning policy
+   transfers (evidence says it won't).
+4. **Filling the empty cell** — multi-agent isolation vs compaction-engineered
+   single agent, cost-normalized, on the same task. The contested comparison
+   nobody has run.
+
+**Why it's publishable despite being "measurement work":** benchmark papers
+(Lost-in-the-Middle, RULER, HELMET, GAIA, SWE-bench) are among the most-cited in
+ML because they define how a field measures progress. Ours adds, beyond a
+benchmark, **(a) a decisive finding** (policy choice is model/task-dependent — a
+decision map), **(b) a novel method** (reversible-hybrid), and **(c) it resolves a
+public debate** (the empty cell). The risk is being scooped, not being ignored;
+the moat is *open + reproducible + free-tier + the model-dependence map*.
+
+---
+
+## 10. Reading map — which unit reads what
 
 | Unit | Primary read(s) | Section |
 |---|---|---|
@@ -335,7 +458,11 @@ more useful claim than any single-policy win, and one fully consistent with §3.
 
 ---
 
-*49 sources, each verified against its primary page in June 2026. Two are flagged
-non-peer-reviewed (Chroma Context Rot; the §6 blogs). When the field moves, re-run
-the verification — the [`paper.md`](paper.md) related-work section depends on these
+*~90 sources, each verified against its primary page in June 2026. §§1–6 are the
+original compaction survey; §7 (applied research-agent landscape + the
+multi-agent-vs-compaction debate), §8 (model/size/reasoning dependence), and §9
+(updated positioning) were added June 2026 as the work moved from needle-recall
+toward end-task success across models. Non-peer-reviewed sources are flagged
+inline (Chroma Context Rot; vendor/practitioner blogs in §6–§7). When the field
+moves, re-run the verification — [`paper.md`](paper.md) depends on these
 identifiers being correct.*
