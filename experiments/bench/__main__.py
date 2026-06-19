@@ -12,9 +12,11 @@ from __future__ import annotations
 import argparse
 from dataclasses import replace
 
-from .config import DEV, FULL
+from .config import DEV, FULL, EXP002
 from .logsetup import setup
 from . import runner, analyze
+
+PRESETS = {"DEV": DEV, "FULL": FULL, "EXP002": EXP002}
 
 
 def main():

@@ -74,3 +74,31 @@ FULL = Config(
     run_lengths=(4, 8, 16, 32),
     seeds=(0, 1, 2, 3, 4),
 )
+
+# EXP-002: does the no-compaction baseline degrade with context length, and does
+# fixed-budget compaction beat it at long lengths? (the lost-in-the-middle / B* test)
+# Fast 8b, long contexts (up to ~21k tok), a fixed budget so the LENGTH axis is
+# isolated; model_max high so the baseline degrades rather than overflows.
+EXP002 = Config(
+    exp_id="EXP-002",
+    slug="length-degradation",
+    hypothesis=(
+        "As raw context length grows, the no-compaction baseline's needle recall "
+        "degrades (lost-in-the-middle); fixed-budget compaction (recency/semantic) "
+        "holds recall higher at long lengths, and the crossover marks where "
+        "compaction becomes net-positive."
+    ),
+    assumptions=(
+        "Needle-fact recall is a valid proxy for task-relevant information retention.",
+        "approx_tokens (~4 chars/token) is acceptable for budget gating.",
+        "model_max (24k) is large enough that the baseline degrades rather than overflows.",
+        "The 8b model exhibits lost-in-the-middle within the tested 3k-21k range.",
+        "Filler pages act as genuine distractors around the planted needles.",
+    ),
+    model="meta/llama-3.1-8b-instruct",
+    model_max_tokens=24_000,
+    policies=("truncate", "recency", "semantic"),
+    budgets=(2000,),
+    run_lengths=(8, 16, 32, 48),
+    seeds=(0, 1, 2),
+)
