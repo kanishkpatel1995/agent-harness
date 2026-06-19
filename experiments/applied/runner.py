@@ -62,7 +62,8 @@ class Config:
 def run(cfg):
     ctx = RunContext(cfg)
     llm = NimLLM(model=cfg.model, cache_dir=cfg.cache_dir, transcript_path=ctx.transcript_path)
-    judge_llm = NimLLM(model=cfg.judge_model, cache_dir=cfg.cache_dir) if cfg.use_judge else None
+    judge_llm = (NimLLM(model=cfg.judge_model, cache_dir=cfg.cache_dir,
+                        transcript_path=ctx.transcript_path) if cfg.use_judge else None)
     items = frames.load(cfg.n_questions, cfg.seed)
     log.info(f"loaded {len(items)} FRAMES questions; policies={list(cfg.policies)}; "
              f"model={cfg.model}; budget={cfg.budget}; max_articles={cfg.max_articles}")
