@@ -23,6 +23,7 @@ def main():
     ap = argparse.ArgumentParser(description="Compaction bake-off bench")
     ap.add_argument("-v", action="count", default=0, help="-v INFO, -vv DEBUG")
     ap.add_argument("--full", action="store_true", help="full 70b sweep instead of dev")
+    ap.add_argument("--exp", default=None, help="named preset: DEV | FULL | EXP002")
     ap.add_argument("--model", default=None, help="override the model id")
     ap.add_argument("--max-window", type=int, default=None, help="override model_max_tokens")
     ap.add_argument("--dataset", default=None, help='override dataset (e.g. "synthetic")')
@@ -34,7 +35,10 @@ def main():
     ap.add_argument("--analyze-only", action="store_true", help="skip the sweep, just report")
     a = ap.parse_args()
 
-    cfg = FULL if a.full else DEV
+    if a.exp:
+        cfg = PRESETS[a.exp.upper()]
+    else:
+        cfg = FULL if a.full else DEV
     overrides = {}
     if a.model:
         overrides["model"] = a.model
