@@ -30,9 +30,10 @@ experiments/runs/**/results.csv
 experiments/runs/**/run.log
 experiments/runs/**/figures/
 
-# Generated figures (regenerate from code via experiments/figstyle.py)
-presentation/figures/
+# Node (deck build tooling — pptxgenjs, sharp)
+node_modules/
 
-# Large binaries / built decks
+# Large binaries / built decks (keep the deck, ignore strays)
 *.pptx
+!presentation/founsi-context-engineering.pptx
 *.key
