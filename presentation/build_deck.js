@@ -272,16 +272,15 @@ const exists = (f) => fs.existsSync(f);
     "Single task domain; importance/semantic are crude heuristics, not embeddings.",
   ], { fontSize: 13.5 });
 
-  // 22 — EXP-002 plan
-  s = content("EXP-002 · length-degradation (in progress)", "Does compaction beat raw context?", 22, 24);
-  s.addText("Hypothesis", { x: MX, y: 1.5, w: 8.8, h: 0.3, fontFace: MAN, fontSize: 13, bold: true, color: PURPLE, margin: 0 });
-  s.addText("As raw context grows, the no-compaction baseline's recall degrades (lost-in-the-middle); fixed-budget compaction holds recall higher at long lengths — the crossover is where compaction becomes net-positive.",
-    { x: MX, y: 1.8, w: 8.8, h: 0.75, fontFace: MAN, fontSize: 13, color: INK, margin: 0 });
+  // 22 — EXP-002 results
+  s = content("EXP-002 · length-degradation", "Does compaction beat raw context? Yes.", 22, 25);
+  fig(s, "EXP-002_recall_vs_length_v1.png", { x: 0.7, y: 1.5, w: 5.3, h: 3.64 });
   bullets(s, [
-    "Design: fast 8b, fixed budget (2000), run-lengths {8, 16, 32, 48} (~3k-21k tokens), 3 seeds.",
-    "Expectation: baseline recall drops with length; recency stays flatter; they cross.",
-    ["Success = a measured crossover point — compaction as recall-positive, not just survival.", true],
-  ], { y: 2.7, fontSize: 13 });
+    "No-compaction baseline collapses with length: 0.62 down to 0.12 by 32 sources.",
+    "Summary compaction (recency, semantic) holds flat near 0.58.",
+    ["Crossover around 16 sources: compaction goes from tied to decisively better.", true],
+    "Truncate is the floor (0.08). 8b dev; the effect is the lost-in-the-middle escape.",
+  ], { x: 6.2, y: 1.7, w: 3.3, fontSize: 12.5 });
 
   // 23 — roadmap
   s = content("Where this goes", "Roadmap", 23, 27);

@@ -31,7 +31,7 @@ def is_correct(answer, gold):
     return _norm(gold) in _norm(answer)
 
 
-def answer_question(item, articles, llm, policy, store, *, budget, keep_recent):
+def answer_question(item, articles, llm, policy, store, *, budget, keep_recent, judge_llm=None):
     body, n_comp, tin, tout = [], 0, 0, 0
     for i, art in enumerate(articles):
         body += _read_msgs(i, art)
@@ -66,6 +66,12 @@ def answer_question(item, articles, llm, policy, store, *, budget, keep_recent):
     m = re.search(r"answer:\s*(.+)$", ans, re.I | re.S)
     final = (m.group(1) if m else ans).strip()
     ok = is_correct(final, item.answer)
+    if judge_llm is not None:
+        from experiments.applied.judge import judge as _judge
+        jok, ju = _judge(judge_llm, item.question, final, item.answer)
+        tin += ju.get("prompt_tokens", 0)
+        tout += ju.get("completion_tokens", 0)
+        ok = bool(jok)
     log.debug(f"q{item.id} [{policy.name}] correct={int(ok)} comp={n_comp} ans={final[:60]!r}")
     return {
         "correct": int(ok), "answer": final[:200], "gold": item.answer[:120],

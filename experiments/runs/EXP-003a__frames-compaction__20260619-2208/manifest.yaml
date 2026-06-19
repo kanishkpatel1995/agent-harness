@@ -1,0 +1,37 @@
+exp_id: EXP-003a
+slug: frames-compaction
+created_utc: 20260619-2208
+git_sha: 5997b24
+python: 3.9.12
+deps:
+  litellm: 1.83.9
+  matplotlib: 3.7.1
+  requests: 2.32.4
+  python-dotenv: 1.0.1
+hypothesis: On FRAMES multi-hop QA, summary-based and reversible-hybrid compaction preserve more answer accuracy per token than truncation; the reversible-hybrid (summary plus retrievable raw) sits on or above the cost-quality frontier.
+assumptions:
+  - Oracle retrieval (gold Wikipedia articles) isolates compaction from search quality.
+  - Articles capped at 6000 chars and N per question still overflow the budget and force compaction.
+  - Normalized substring match against the gold answer is a cheap, objective accuracy proxy for dev.
+  - 8b is a dev model; final numbers and an LLM-judge come with the 70b solid run.
+config:
+  exp_id: EXP-003a
+  slug: frames-compaction
+  hypothesis: On FRAMES multi-hop QA, summary-based and reversible-hybrid compaction preserve more answer accuracy per token than truncation; the reversible-hybrid (summary plus retrievable raw) sits on or above the cost-quality frontier.
+  assumptions:
+    - Oracle retrieval (gold Wikipedia articles) isolates compaction from search quality.
+    - Articles capped at 6000 chars and N per question still overflow the budget and force compaction.
+    - Normalized substring match against the gold answer is a cheap, objective accuracy proxy for dev.
+    - 8b is a dev model; final numbers and an LLM-judge come with the 70b solid run.
+  model: meta/llama-3.1-8b-instruct
+  policies:
+    - truncate
+    - recency
+    - externalize
+    - reversible_hybrid
+  n_questions: 50
+  max_articles: 6
+  budget: 2000
+  keep_recent: 4
+  seed: 0
+  cache_dir: experiments/.cache

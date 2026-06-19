@@ -48,6 +48,8 @@ class Config:
         "8b is a dev model; final numbers and an LLM-judge come with the 70b solid run.",
     )
     model: str = "meta/llama-3.1-8b-instruct"
+    use_judge: bool = False
+    judge_model: str = "meta/llama-3.3-70b-instruct"
     policies: tuple = ("truncate", "recency", "externalize", "reversible_hybrid")
     n_questions: int = 50
     max_articles: int = 6
@@ -60,6 +62,7 @@ class Config:
 def run(cfg):
     ctx = RunContext(cfg)
     llm = NimLLM(model=cfg.model, cache_dir=cfg.cache_dir, transcript_path=ctx.transcript_path)
+    judge_llm = NimLLM(model=cfg.judge_model, cache_dir=cfg.cache_dir) if cfg.use_judge else None
     items = frames.load(cfg.n_questions, cfg.seed)
     log.info(f"loaded {len(items)} FRAMES questions; policies={list(cfg.policies)}; "
              f"model={cfg.model}; budget={cfg.budget}; max_articles={cfg.max_articles}")
@@ -81,7 +84,8 @@ def run(cfg):
                 store = EmbedStore() if pol.retrieves else None
                 try:
                     row = answer_question(it, it.articles, llm, pol, store,
-                                          budget=cfg.budget, keep_recent=cfg.keep_recent)
+                                          budget=cfg.budget, keep_recent=cfg.keep_recent,
+                                          judge_llm=judge_llm)
                 except Exception as e:  # one bad question must not kill the sweep
                     log.error(f"{pname} q{it.id} FAILED: {type(e).__name__}: {e}")
                     continue
@@ -101,7 +105,8 @@ def report(results_path):
         g[r["policy"]].append((int(r["correct"]), int(r["tokens_total"]), int(r["n_compactions"])))
     print("\n=== EXP-003a: FRAMES accuracy vs cost by policy ===")
     print(f"{'policy':<18}{'accuracy':>10}{'mean_tokens':>13}{'mean_comp':>11}{'n':>5}")
-    for p in ("truncate", "recency", "externalize", "reversible_hybrid"):
+    for p in ("truncate", "recency", "importance", "semantic",
+              "externalize", "reversible_hybrid", "subagent"):
         if p in g:
             a = g[p]
             acc = sum(c for c, _, _ in a) / len(a)
@@ -118,6 +123,7 @@ def main():
     ap.add_argument("--policies", default=None, help="comma list")
     ap.add_argument("--budget", type=int, default=None)
     ap.add_argument("--max-articles", type=int, default=None)
+    ap.add_argument("--judge", action="store_true", help="grade with the LLM judge, not substring")
     a = ap.parse_args()
     setup("DEBUG" if a.v >= 2 else "INFO")
     cfg = Config()
@@ -131,6 +137,8 @@ def main():
         cfg.budget = a.budget
     if a.max_articles:
         cfg.max_articles = a.max_articles
+    if a.judge:
+        cfg.use_judge = True
     ctx = run(cfg)
     report(ctx.results_path)
 
