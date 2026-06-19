@@ -13,7 +13,7 @@ LINKS = {
     "repo": "https://github.com/kanishkpatel1995/agent-harness",
     "newsletter": "https://learnagentic.substack.com",
     "x": "https://x.com/above_almighty",
-    # "linkedin": "https://www.linkedin.com/in/<handle>",   # TODO: fill when provided
+    "linkedin": "https://www.linkedin.com/in/kanishkpatel",
 }
 
 for name, url in LINKS.items():
