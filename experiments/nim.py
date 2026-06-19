@@ -95,7 +95,8 @@ class NimLLM:
         for attempt in range(self.max_retries):
             self._pace()
             try:
-                r = litellm.completion(model=self.model, messages=messages, temperature=self.temperature)
+                r = litellm.completion(model=self.model, messages=messages,
+                                       temperature=self.temperature, timeout=90)
                 m = r.choices[0].message
                 usage = {
                     "prompt_tokens": getattr(r.usage, "prompt_tokens", 0),
