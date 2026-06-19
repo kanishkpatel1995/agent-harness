@@ -1,5 +1,7 @@
 # Secrets
 .env
+.env.*
+!.env.example
 
 # Agent runtime output
 run/
@@ -13,3 +15,24 @@ venv/
 .pytest_cache/
 *.egg-info/
 .DS_Store
+
+# --- Research data: commit code + run manifests, NOT heavy outputs ---
+# LLM response cache (regenerated on demand; can be hundreds of files)
+experiments/.cache/
+# Legacy flat data files (superseded by per-run directories)
+experiments/results.csv
+experiments/bench/results.csv
+experiments/token_growth.csv
+experiments/scenarios.json
+# Per-run heavy artifacts — keep manifest.yaml + README.md, ignore the rest
+experiments/runs/**/prompts.jsonl
+experiments/runs/**/results.csv
+experiments/runs/**/run.log
+experiments/runs/**/figures/
+
+# Generated figures (regenerate from code via experiments/figstyle.py)
+presentation/figures/
+
+# Large binaries / built decks
+*.pptx
+*.key

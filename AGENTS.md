@@ -63,3 +63,30 @@ python examples/run_offline_demo.py   # the stage demo
 - `harness/llm.py` / `harness/fake_llm.py` — real and offline models
 - `docs/` — architecture, demo script, references
 - `tests/` — all offline
+- `experiments/` — the research track (compaction bake-off + the `bench/` package)
+- `presentation/` — the deck plan + Founsi brand assets
+
+## Experiment standards (read before touching `experiments/`)
+
+The full contract is [`docs/research-track/experiment-protocol.md`](docs/research-track/experiment-protocol.md).
+**Follow it.** The non-negotiables:
+
+- **Hypothesis + assumptions first.** Every experiment states a single falsifiable
+  hypothesis and an explicit assumptions list before code is written. Both go in
+  the run's `manifest.yaml` and the deck appendix.
+- **Record everything.** Every LLM call (prompt, response, usage, stage, timestamp)
+  is saved to the run's `prompts.jsonl`. Nothing is "real" unless it's on disk.
+- **Nomenclature is traceable.** Experiments are `EXP-NNN`; runs write to
+  `experiments/runs/EXP-NNN__<slug>__<YYYYMMDD-HHMM>/`. No `final2.csv`, no `test/`.
+- **Figures are publication-grade.** Data figures use
+  [`experiments/figstyle.py`](experiments/figstyle.py): color-blind palette, Times
+  New Roman, no vertical grid, legend upper-right transparent, axis units in
+  parentheses, seeded, **PDF**. The Founsi brand styles the deck chrome, not the
+  data figures.
+- **Build on the last experiment.** Read `EXP-(N-1)`'s manifest + README before
+  designing the next. Reuse and extend code; classes + modules + `logging` (`-vv`
+  = step-by-step), seeded, fail-soft with guards.
+- **Reproducible by a stranger.** Pin model/config/seed/git-sha in the manifest;
+  one command reruns it; the cache makes reruns free.
+- **Record in the deck.** Each experiment → an appendix block (hypothesis ·
+  assumptions · solution · figures · results), small fonts allowed.
