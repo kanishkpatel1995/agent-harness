@@ -19,6 +19,9 @@ venv/
 # --- Research data: commit code + run manifests, NOT heavy outputs ---
 # LLM response cache (regenerated on demand; can be hundreds of files)
 experiments/.cache/
+# Applied experiment caches (fetched Wikipedia text, embedding vectors)
+experiments/applied/.wikicache/
+experiments/applied/.embcache/
 # Legacy flat data files (superseded by per-run directories)
 experiments/results.csv
 experiments/bench/results.csv
