@@ -282,27 +282,46 @@ const exists = (f) => fs.existsSync(f);
     "Truncate is the floor (0.08). 8b dev; the effect is the lost-in-the-middle escape.",
   ], { x: 6.2, y: 1.7, w: 3.3, fontSize: 12.5 });
 
-  // 23 — roadmap
-  s = content("Where this goes", "Roadmap", 23, 27);
+  // 23 — EXP-003a applied (the metric lesson)
+  s = content("EXP-003a · applied FRAMES", "On a real task, the metric flips the result", 23, 23);
+  fig(s, "EXP-003a_pareto_v1.png", { x: 0.7, y: 1.5, w: 5.3, h: 3.59 });
   bullets(s, [
-    "EXP-002 — length degradation (running) · EXP-003 — 70b confirmation, the 128k ceiling.",
-    "Lost-in-the-middle: recall by needle depth (data already logged).",
-    "Real eval datasets (RULER / LongBench / BABILong) via HF datasets.",
-    "LangChain summary-memory as a baseline arm to beat.",
-    "Mode B — the live agent loop. Then the paper.",
+    "A real research agent answers FRAMES multi-hop questions under each policy.",
+    "Substring scoring made the reversible-hybrid look worst, at 0.21.",
+    ["The LLM judge, which credits paraphrase, flipped it to best, at 0.62.", true],
+    "At low pressure all four cluster near 0.6: compaction barely fires (~1 event).",
+  ], { x: 6.2, y: 1.7, w: 3.3, fontSize: 12.5 });
+
+  // 24 — EXP-003b the bake-off
+  s = content("EXP-003b · the compaction bake-off", "Under pressure, the policies separate", 24, 24);
+  fig(s, "EXP-003b_pareto_v1.png", { x: 0.7, y: 1.5, w: 5.3, h: 3.6 });
+  bullets(s, [
+    "7 arms, 30 questions, high pressure (9 to 18 compactions each), judged.",
+    "recency, the shipped default, is dominated by truncation: same accuracy, 7x cost.",
+    "sub-agent isolation scores 0.50 at 5x the cost. Isolation is expensive here.",
+    ["semantic 0.57 and importance 0.50 lead; reversible-hybrid is on the frontier at 0.47.", true],
+  ], { x: 6.2, y: 1.7, w: 3.3, fontSize: 12 });
+
+  // 25 — roadmap
+  s = content("Where this goes", "Roadmap", 25, 25);
+  bullets(s, [
+    "EXP-003c: the 70b model and the reasoning model (the model-dependence map).",
+    "EXP-004: LoCoMo conversational memory, the second domain.",
+    "Larger N and tighter error bars on the arms that separate.",
+    "LangChain summary-memory as a baseline arm; then the paper.",
   ], { fontSize: 13.5 });
 
-  // 24 — references
-  s = content("References", "The literature this stands on", 24, 26);
+  // 26 — references
+  s = content("References", "The literature this stands on", 26, 26);
   bullets(s, [
-    "Lost in the Middle — Liu et al., arXiv:2307.03172.",
-    "RULER — Hsieh et al., 2404.06654 · HELMET — Yen et al., 2410.02694.",
-    "MemGPT — Packer et al., 2310.08560 · LLMLingua — Jiang et al., 2310.05736.",
-    "Judging LLM-as-a-Judge — Zheng et al., 2306.05685.",
-    "Effective context engineering for AI agents — Anthropic, 2025.",
+    "Lost in the Middle, Liu et al., arXiv:2307.03172.",
+    "RULER 2404.06654 · HELMET 2410.02694 · NoLiMa 2502.05167.",
+    "MemGPT 2310.08560 · Mem0 2504.19413 · ACON 2510.00615.",
+    "Judging LLM-as-a-Judge, Zheng et al., 2306.05685.",
+    "FRAMES 2409.12941 · LoCoMo 2402.17753.",
   ], { fontSize: 13, color: GREY });
 
-  // 25 — Find me (QR codes)
+  // 27 — Find me (QR codes)
   s = p.addSlide(); s.background = { color: INK };
   s.addText("FIND ME", { x: MX, y: 0.6, w: 9, h: 0.4, fontFace: SYNE, fontSize: 12, bold: true, color: PURPLE, charSpacing: 4, margin: 0 });
   s.addText("Clone it. Read the write-ups. Say hi.", { x: MX, y: 1.0, w: 9, h: 0.7, fontFace: SYNE, fontSize: 30, bold: true, color: WHITE, margin: 0 });
@@ -310,8 +329,8 @@ const exists = (f) => fs.existsSync(f);
   qrBlock(s, "qr_newsletter.png", "Learn Agentic AI", 3.25, 2.3, 1.25);
   qrBlock(s, "qr_x.png", "X · @above_almighty", 5.55, 2.3, 1.25);
   qrBlock(s, "qr_linkedin.png", "LinkedIn", 7.85, 2.3, 1.25);
-  footer(s, 25, true);
+  footer(s, 27, true);
 
   await p.writeFile({ fileName: path.join(__dirname, "founsi-context-engineering.pptx") });
-  console.log("wrote presentation/founsi-context-engineering.pptx (25 slides)");
+  console.log("wrote presentation/founsi-context-engineering.pptx (27 slides)");
 })();
