@@ -58,6 +58,22 @@ class Config:
     keep_recent: int = 4
     seed: int = 0
     cache_dir: str = "experiments/.cache"
+    resume: bool = False
+
+
+RUNS_DIR = Path("experiments/runs")
+
+
+def _latest_run_dir(exp_id):
+    dirs = sorted(RUNS_DIR.glob(f"{exp_id}__*"))
+    return dirs[-1] if dirs else None
+
+
+def _done_cells(results_path):
+    if not Path(results_path).exists():
+        return set()
+    with open(results_path) as f:
+        return {(r["policy"], r["qid"]) for r in csv.DictReader(f)}
 
 
 # EXP-003b: high compaction pressure (small budget, articles read in chunks so
@@ -92,10 +108,24 @@ EXP003B = Config(
 
 
 def run(cfg):
-    ctx = RunContext(cfg)
-    llm = NimLLM(model=cfg.model, cache_dir=cfg.cache_dir, transcript_path=ctx.transcript_path)
+    # Resume reuses the latest run dir for this experiment and skips finished
+    # cells, so an interrupted run loses nothing (the response cache also replays
+    # any redone calls for free).
+    done = set()
+    if getattr(cfg, "resume", False) and _latest_run_dir(cfg.exp_id) is not None:
+        rundir = _latest_run_dir(cfg.exp_id)
+        results_path = rundir / "results.csv"
+        transcript_path = rundir / "prompts.jsonl"
+        done = _done_cells(results_path)
+        log.info(f"RESUMING {rundir.name}: {len(done)} cells already done, skipping those")
+    else:
+        ctx = RunContext(cfg)
+        results_path = ctx.results_path
+        transcript_path = ctx.transcript_path
+
+    llm = NimLLM(model=cfg.model, cache_dir=cfg.cache_dir, transcript_path=transcript_path)
     judge_llm = (NimLLM(model=cfg.judge_model, cache_dir=cfg.cache_dir,
-                        transcript_path=ctx.transcript_path) if cfg.use_judge else None)
+                        transcript_path=transcript_path) if cfg.use_judge else None)
     items = frames.load(cfg.n_questions, cfg.seed)
     log.info(f"loaded {len(items)} FRAMES questions; policies={list(cfg.policies)}; "
              f"model={cfg.model}; budget={cfg.budget}; max_articles={cfg.max_articles}")
@@ -117,13 +147,17 @@ def run(cfg):
     items = [it for it in items if it.articles]
     log.info(f"{len(items)} questions have fetchable articles")
 
-    with ctx.results_path.open("w", newline="") as f:
+    write_header = (not results_path.exists()) or results_path.stat().st_size == 0
+    with results_path.open("a", newline="") as f:
         w = csv.DictWriter(f, fieldnames=FIELDS)
-        w.writeheader()
+        if write_header:
+            w.writeheader()
         for pname in cfg.policies:
             pol = POLICIES[pname]
-            corr = 0
+            corr = total = 0
             for it in items:
+                if (pname, it.id) in done:
+                    continue
                 store = EmbedStore() if pol.retrieves else None
                 try:
                     row = answer_question(it, it.articles, llm, pol, store,
@@ -136,9 +170,11 @@ def run(cfg):
                 w.writerow({k: row.get(k) for k in FIELDS})
                 f.flush()
                 corr += row["correct"]
-            log.info(f"[{pname}] accuracy {corr}/{len(items)} = {corr / max(1, len(items)):.2f}")
-    log.info(f"sweep complete -> {ctx.results_path}")
-    return ctx
+                total += 1
+            if total:
+                log.info(f"[{pname}] {corr}/{total} correct (new this run)")
+    log.info(f"sweep complete -> {results_path}")
+    return results_path
 
 
 def report(results_path):
@@ -169,6 +205,7 @@ def main():
     ap.add_argument("--judge", action="store_true", help="grade with the LLM judge, not substring")
     ap.add_argument("--chunk-chars", type=int, default=None, help="split articles into chunks of N chars")
     ap.add_argument("--preset", default=None, help="EXP003B for the high-pressure config")
+    ap.add_argument("--resume", action="store_true", help="resume the latest run dir, skip done cells")
     a = ap.parse_args()
     setup("DEBUG" if a.v >= 2 else "INFO")
     cfg = EXP003B if a.preset == "EXP003B" else Config()
@@ -186,8 +223,10 @@ def main():
         cfg.max_articles = a.max_articles
     if a.judge:
         cfg.use_judge = True
-    ctx = run(cfg)
-    report(ctx.results_path)
+    if a.resume:
+        cfg.resume = True
+    results_path = run(cfg)
+    report(results_path)
 
 
 if __name__ == "__main__":
