@@ -13,6 +13,7 @@ NVIDIA_FREE_API_KEY, so we map one to the other once, here.
 
 from __future__ import annotations
 
+import concurrent.futures
 import datetime
 import hashlib
 import json
@@ -24,6 +25,31 @@ from dataclasses import dataclass
 from pathlib import Path
 
 log = logging.getLogger("bench.model")
+
+
+def _completion_with_deadline(model, messages, temperature, soft_timeout, hard_timeout):
+    """Call litellm.completion with a hard wall-clock deadline.
+
+    litellm's own ``timeout`` is not reliably enforced for the nvidia_nim transport:
+    if the server accepts the connection then holds it open without sending bytes, the
+    read timeout can fail to fire and the call wedges forever (observed at 0% CPU with
+    no error). We run the call on a worker thread and bound it with
+    ``future.result(timeout=...)`` so a wedged socket raises instead of hanging the
+    whole sweep. The orphaned thread is abandoned (Python cannot kill it) and will die
+    when its connection eventually drops; that is acceptable for a bounded dev run.
+    """
+    import litellm
+
+    ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        fut = ex.submit(litellm.completion, model=model, messages=messages,
+                        temperature=temperature, timeout=soft_timeout)
+        return fut.result(timeout=hard_timeout)
+    except concurrent.futures.TimeoutError:
+        raise TimeoutError(f"hard watchdog: no response in {hard_timeout}s "
+                           "(litellm ignored its own timeout)")
+    finally:
+        ex.shutdown(wait=False)
 
 
 def _load_env_key():
@@ -89,14 +115,12 @@ class NimLLM:
             self._record(stage, messages, res)
             return res
 
-        import litellm
-
         last = None
         for attempt in range(self.max_retries):
             self._pace()
             try:
-                r = litellm.completion(model=self.model, messages=messages,
-                                       temperature=self.temperature, timeout=90)
+                r = _completion_with_deadline(self.model, messages, self.temperature,
+                                              soft_timeout=60, hard_timeout=75)
                 m = r.choices[0].message
                 usage = {
                     "prompt_tokens": getattr(r.usage, "prompt_tokens", 0),

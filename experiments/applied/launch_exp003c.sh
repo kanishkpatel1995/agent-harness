@@ -10,7 +10,9 @@ cd "$REPO"
 
 echo "=== EXP-003c arm 1/2: meta/llama-3.3-70b-instruct (strong instruct) ==="
 date -u +"start %Y-%m-%dT%H:%M:%SZ"
-python3 -m experiments.applied --preset EXP003C -v
+# --resume reuses the existing EXP-003c run dir and skips finished cells, so a
+# restart (e.g. after the watchdog-fix relaunch) loses none of the completed work.
+python3 -m experiments.applied --preset EXP003C --resume -v
 
 echo "=== EXP-003c arm 2/2: nvidia/llama-3.3-nemotron-super-49b-v1.5 (reasoning) ==="
 date -u +"start %Y-%m-%dT%H:%M:%SZ"
