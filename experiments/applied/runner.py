@@ -54,9 +54,41 @@ class Config:
     n_questions: int = 50
     max_articles: int = 6
     budget: int = 2000
+    chunk_chars: int = 0   # >0 splits each article into chunks read as separate steps
     keep_recent: int = 4
     seed: int = 0
     cache_dir: str = "experiments/.cache"
+
+
+# EXP-003b: high compaction pressure (small budget, articles read in chunks so
+# compaction fires many times per question), all seven arms, LLM judge. The regime
+# where policy should matter, unlike the low-pressure EXP-003a where they tied.
+EXP003B = Config(
+    exp_id="EXP-003b",
+    slug="frames-pressure",
+    hypothesis=(
+        "Under high compaction pressure (small budget, chunked reads forcing many "
+        "compaction events per question), the policies separate on FRAMES answer "
+        "accuracy, and the reversible-hybrid (summary plus retrievable raw) sits on "
+        "or above the cost-quality frontier, unlike the low-pressure EXP-003a tie."
+    ),
+    assumptions=(
+        "Oracle retrieval (gold Wikipedia articles) isolates compaction from search quality.",
+        "Chunked reads at budget 1500 force roughly 10-20 compactions per question (cf. EXP-002 pressure).",
+        "The 70b LLM judge credits paraphrased-correct answers (substring biased toward verbatim).",
+        "8b is a dev model; the model axis (70b, reasoning) comes in EXP-003c.",
+    ),
+    model="meta/llama-3.1-8b-instruct",
+    use_judge=True,
+    policies=("truncate", "recency", "importance", "semantic",
+              "externalize", "reversible_hybrid", "subagent"),
+    n_questions=30,
+    max_articles=6,
+    budget=1500,
+    chunk_chars=1500,
+    keep_recent=4,
+    seed=0,
+)
 
 
 def run(cfg):
@@ -69,9 +101,19 @@ def run(cfg):
              f"model={cfg.model}; budget={cfg.budget}; max_articles={cfg.max_articles}")
 
     # Pre-fetch the gold articles once (cached on disk), capped per question.
+    # Optionally split each article into chunks read as separate steps, which raises
+    # compaction pressure (more reads -> more compaction events).
     for it in items:
         arts = [wiki.fetch(u) for u in it.wiki_urls[:cfg.max_articles]]
-        it.articles = [a for a in arts if a.strip()]
+        chunks = []
+        for a in arts:
+            if not a.strip():
+                continue
+            if cfg.chunk_chars > 0:
+                chunks += [a[i:i + cfg.chunk_chars] for i in range(0, len(a), cfg.chunk_chars)]
+            else:
+                chunks.append(a)
+        it.articles = chunks
     items = [it for it in items if it.articles]
     log.info(f"{len(items)} questions have fetchable articles")
 
@@ -125,11 +167,15 @@ def main():
     ap.add_argument("--budget", type=int, default=None)
     ap.add_argument("--max-articles", type=int, default=None)
     ap.add_argument("--judge", action="store_true", help="grade with the LLM judge, not substring")
+    ap.add_argument("--chunk-chars", type=int, default=None, help="split articles into chunks of N chars")
+    ap.add_argument("--preset", default=None, help="EXP003B for the high-pressure config")
     a = ap.parse_args()
     setup("DEBUG" if a.v >= 2 else "INFO")
-    cfg = Config()
+    cfg = EXP003B if a.preset == "EXP003B" else Config()
     if a.n:
         cfg.n_questions = a.n
+    if a.chunk_chars is not None:
+        cfg.chunk_chars = a.chunk_chars
     if a.model:
         cfg.model = a.model
     if a.policies:
