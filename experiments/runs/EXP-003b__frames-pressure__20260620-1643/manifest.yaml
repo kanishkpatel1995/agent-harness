@@ -1,0 +1,43 @@
+exp_id: EXP-003b
+slug: frames-pressure
+created_utc: 20260620-1643
+git_sha: 2a7da5c
+python: 3.9.12
+deps:
+  litellm: 1.83.9
+  matplotlib: 3.7.1
+  requests: 2.32.4
+  python-dotenv: 1.0.1
+hypothesis: Under high compaction pressure (small budget, chunked reads forcing many compaction events per question), the policies separate on FRAMES answer accuracy, and the reversible-hybrid (summary plus retrievable raw) sits on or above the cost-quality frontier, unlike the low-pressure EXP-003a tie.
+assumptions:
+  - Oracle retrieval (gold Wikipedia articles) isolates compaction from search quality.
+  - Chunked reads at budget 1500 force roughly 10-20 compactions per question (cf. EXP-002 pressure).
+  - The 70b LLM judge credits paraphrased-correct answers (substring biased toward verbatim).
+  - 8b is a dev model; the model axis (70b, reasoning) comes in EXP-003c.
+config:
+  exp_id: EXP-003b
+  slug: frames-pressure
+  hypothesis: Under high compaction pressure (small budget, chunked reads forcing many compaction events per question), the policies separate on FRAMES answer accuracy, and the reversible-hybrid (summary plus retrievable raw) sits on or above the cost-quality frontier, unlike the low-pressure EXP-003a tie.
+  assumptions:
+    - Oracle retrieval (gold Wikipedia articles) isolates compaction from search quality.
+    - Chunked reads at budget 1500 force roughly 10-20 compactions per question (cf. EXP-002 pressure).
+    - The 70b LLM judge credits paraphrased-correct answers (substring biased toward verbatim).
+    - 8b is a dev model; the model axis (70b, reasoning) comes in EXP-003c.
+  model: meta/llama-3.1-8b-instruct
+  use_judge: true
+  judge_model: meta/llama-3.3-70b-instruct
+  policies:
+    - truncate
+    - recency
+    - importance
+    - semantic
+    - externalize
+    - reversible_hybrid
+    - subagent
+  n_questions: 30
+  max_articles: 6
+  budget: 1500
+  chunk_chars: 1500
+  keep_recent: 4
+  seed: 0
+  cache_dir: experiments/.cache
