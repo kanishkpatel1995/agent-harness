@@ -107,6 +107,42 @@ EXP003B = Config(
 )
 
 
+# EXP-003c: the model axis. Same high-pressure regime as EXP-003b, but we vary the
+# agent model instead of the policy set. We keep only the five arms that separated in
+# EXP-003b (dropping recency and subagent, both Pareto-dominated there) and re-run them
+# on a strong instruct model and a reasoning model, to see whether the 8b ranking holds
+# as capability grows. The 8b numbers come from the EXP-003b run (same five arms).
+EXP003C = Config(
+    exp_id="EXP-003c",
+    slug="frames-model-axis",
+    hypothesis=(
+        "The EXP-003b policy ranking is model-dependent: on a stronger instruct model "
+        "and a reasoning model, structure-preserving compaction (semantic, importance) "
+        "still leads on FRAMES accuracy, but the gaps between arms narrow as the model "
+        "gets better at reconstructing dropped context, and the reversible-hybrid stays "
+        "Pareto-efficient across all three model tiers."
+    ),
+    assumptions=(
+        "Oracle retrieval (gold Wikipedia articles) isolates compaction from search quality.",
+        "The same thirty FRAMES questions and cached articles are reused across models, so only the agent model changes.",
+        "A fixed 70b judge grades every arm and every model, so the metric is held constant across the model axis.",
+        "The reasoning model's chain-of-thought is parsed down to its final answer before judging.",
+    ),
+    model="meta/llama-3.3-70b-instruct",
+    use_judge=True,
+    policies=("truncate", "externalize", "importance", "semantic", "reversible_hybrid"),
+    n_questions=30,
+    max_articles=6,
+    budget=1500,
+    chunk_chars=1500,
+    keep_recent=4,
+    seed=0,
+)
+
+
+PRESETS = {"EXP003B": EXP003B, "EXP003C": EXP003C}
+
+
 def run(cfg):
     # Resume reuses the latest run dir for this experiment and skips finished
     # cells, so an interrupted run loses nothing (the response cache also replays
@@ -204,11 +240,12 @@ def main():
     ap.add_argument("--max-articles", type=int, default=None)
     ap.add_argument("--judge", action="store_true", help="grade with the LLM judge, not substring")
     ap.add_argument("--chunk-chars", type=int, default=None, help="split articles into chunks of N chars")
-    ap.add_argument("--preset", default=None, help="EXP003B for the high-pressure config")
+    ap.add_argument("--preset", default=None,
+                    help="EXP003B (high-pressure 7-arm) or EXP003C (model axis, 5-arm)")
     ap.add_argument("--resume", action="store_true", help="resume the latest run dir, skip done cells")
     a = ap.parse_args()
     setup("DEBUG" if a.v >= 2 else "INFO")
-    cfg = EXP003B if a.preset == "EXP003B" else Config()
+    cfg = PRESETS[a.preset] if a.preset in PRESETS else Config()
     if a.n:
         cfg.n_questions = a.n
     if a.chunk_chars is not None:

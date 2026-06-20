@@ -63,6 +63,10 @@ def answer_question(item, articles, llm, policy, store, *, budget, keep_recent, 
     tout += r.usage.get("completion_tokens", 0)
 
     ans = r.content or ""
+    # Reasoning models (Nemotron, R1, QwQ) wrap chain-of-thought in <think>...</think>.
+    # Strip it so we extract and judge the final answer, not the scratchpad. This is a
+    # no-op for instruct models, which never emit the tags, so every arm stays comparable.
+    ans = re.sub(r"<think>.*?</think>", "", ans, flags=re.I | re.S).strip()
     m = re.search(r"answer:\s*(.+)$", ans, re.I | re.S)
     final = (m.group(1) if m else ans).strip()
     ok = is_correct(final, item.answer)
