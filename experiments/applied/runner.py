@@ -62,6 +62,12 @@ class Config:
     # Non-empty => run the AGENT against this OpenAI-compatible endpoint (e.g. LM Studio
     # at http://localhost:1234/v1). The judge stays on NIM so the metric is held constant.
     api_base: str = ""
+    # Override the agent watchdog (seconds). Reasoning models emit long summaries that can
+    # legitimately exceed the default 75s; raising this stops the watchdog killing them.
+    agent_timeout: int = 0
+    # Append "detailed thinking off" to the agent's compaction summaries (reasoning models
+    # only) so summaries stay concise and fast; the answer keeps full reasoning.
+    think_off_summarize: bool = False
 
 
 RUNS_DIR = Path("experiments/runs")
@@ -169,7 +175,15 @@ def run(cfg):
                      api_base=cfg.api_base, min_interval=0.0, soft_timeout=150, hard_timeout=180)
         log.info(f"AGENT on local endpoint {cfg.api_base} (model={cfg.model}); judge stays on NIM")
     else:
-        llm = NimLLM(model=cfg.model, cache_dir=cfg.cache_dir, transcript_path=transcript_path)
+        to = ({"soft_timeout": cfg.agent_timeout, "hard_timeout": cfg.agent_timeout + 20}
+              if cfg.agent_timeout else {})
+        if cfg.think_off_summarize:
+            to["think_off_stages"] = {"summarize"}
+        llm = NimLLM(model=cfg.model, cache_dir=cfg.cache_dir, transcript_path=transcript_path, **to)
+        if cfg.agent_timeout:
+            log.info(f"agent watchdog raised to {cfg.agent_timeout}s (reasoning summaries run long)")
+        if cfg.think_off_summarize:
+            log.info("summaries use 'detailed thinking off' (concise, fast); answer keeps reasoning")
     judge_llm = (NimLLM(model=cfg.judge_model, cache_dir=cfg.cache_dir,
                         transcript_path=transcript_path) if cfg.use_judge else None)
     items = frames.load(cfg.n_questions, cfg.seed)
@@ -255,6 +269,10 @@ def main():
     ap.add_argument("--resume", action="store_true", help="resume the latest run dir, skip done cells")
     ap.add_argument("--api-base", default=None,
                     help="run the agent against this OpenAI-compatible endpoint (e.g. LM Studio)")
+    ap.add_argument("--agent-timeout", type=int, default=None,
+                    help="raise the agent watchdog (s) for verbose reasoning models")
+    ap.add_argument("--think-off-summarize", action="store_true",
+                    help="reasoning models: keep compaction summaries concise (thinking off)")
     a = ap.parse_args()
     setup("DEBUG" if a.v >= 2 else "INFO")
     cfg = PRESETS[a.preset] if a.preset in PRESETS else Config()
@@ -276,6 +294,10 @@ def main():
         cfg.resume = True
     if a.api_base:
         cfg.api_base = a.api_base
+    if a.agent_timeout:
+        cfg.agent_timeout = a.agent_timeout
+    if a.think_off_summarize:
+        cfg.think_off_summarize = True
     results_path = run(cfg)
     report(results_path)
 

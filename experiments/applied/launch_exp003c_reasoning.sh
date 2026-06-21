@@ -11,10 +11,12 @@ MODEL="nvidia/nemotron-3-nano-30b-a3b"
 attempt=0
 while : ; do
   attempt=$((attempt + 1))
-  if [ "$attempt" -eq 1 ]; then RESUME=""; else RESUME="--resume"; fi
-  echo "=== EXP-003c reasoning tier (NIM $MODEL) attempt $attempt $RESUME ==="
+  # Always --resume: the EXP-003c reasoning run dir already exists (it is the newest
+  # EXP-003c dir), so this continues it and skips the cells already done.
+  echo "=== EXP-003c reasoning tier (NIM $MODEL) attempt $attempt ==="
   date -u +"start %Y-%m-%dT%H:%M:%SZ"
-  python3 -m experiments.applied --preset EXP003C --model "$MODEL" --judge $RESUME -v
+  python3 -m experiments.applied --preset EXP003C --model "$MODEL" --judge --resume \
+          --think-off-summarize --agent-timeout 120 -v
   rc=$?
   if [ "$rc" -eq 0 ]; then echo "=== complete (rc=0) after $attempt attempt(s) ==="; break; fi
   echo "=== exited rc=$rc; re-resuming in 15s ==="

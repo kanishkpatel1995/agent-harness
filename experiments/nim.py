@@ -76,7 +76,13 @@ class NimLLM:
     def __init__(self, model="meta/llama-3.3-70b-instruct", *, temperature=0.2,
                  min_interval=1.6, max_retries=6, cache_dir="experiments/.cache",
                  transcript_path=None, api_base=None, api_key=None,
-                 soft_timeout=60, hard_timeout=75):
+                 soft_timeout=60, hard_timeout=75,
+                 think_off_stages=frozenset(), think_off_max_tokens=600):
+        # For reasoning models (Nemotron), append the "detailed thinking off" directive on
+        # the given stages so compaction summaries stay concise instead of triggering long
+        # chain-of-thought. The answer stage keeps full reasoning (that is what we measure).
+        self.think_off_stages = frozenset(think_off_stages)
+        self.think_off_max_tokens = think_off_max_tokens
         # api_base set => an OpenAI-compatible local endpoint (e.g. LM Studio). The
         # agent model can run locally while the judge stays on NIM; we route by prefix.
         self.api_base = api_base
@@ -116,8 +122,19 @@ class NimLLM:
         blob = json.dumps([self.model, self.temperature, messages], sort_keys=True, ensure_ascii=False)
         return hashlib.sha256(blob.encode()).hexdigest()[:24]
 
+    def _with_think_off(self, messages):
+        out = [dict(m) for m in messages]
+        for m in out:
+            if m.get("role") == "system":
+                m["content"] = "detailed thinking off\n" + (m.get("content") or "")
+                return out
+        return [{"role": "system", "content": "detailed thinking off"}] + out
+
     # --- the call -----------------------------------------------------------
     def complete(self, messages, stage="call"):
+        think_off = stage in self.think_off_stages
+        if think_off:
+            messages = self._with_think_off(messages)
         ck = self._ckey(messages)
         cp = self.cache / f"{ck}.json"
         if cp.exists():
@@ -127,7 +144,10 @@ class NimLLM:
             self._record(stage, messages, res)
             return res
 
-        extra = {"api_base": self.api_base, "api_key": self.api_key} if self.api_base else None
+        extra = {"api_base": self.api_base, "api_key": self.api_key} if self.api_base else {}
+        if think_off:
+            extra["max_tokens"] = self.think_off_max_tokens  # concise summary, hard-bounded
+        extra = extra or None
         last = None
         for attempt in range(self.max_retries):
             self._pace()
