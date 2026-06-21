@@ -1,6 +1,6 @@
 # Results So Far: From Mechanism to Impact
 
-*A synthesis of the five experiments run to date, written so the story is clear in
+*A synthesis of the six experiments run to date, written so the story is clear in
 one read. All numbers are LLM-judged where noted. Figures live in
 `presentation/figures/`. This is the running results section for the paper.*
 
@@ -8,7 +8,7 @@ one read. All numbers are LLM-judged where noted. Figures live in
 
 ## The shape of the argument
 
-We ran five experiments in two layers. The first layer asks a mechanical question,
+We ran six experiments in two layers. The first layer asks a mechanical question,
 does compaction preserve information. The second asks the question that matters,
 does compaction help a real agent answer real questions. The point of the pairing
 is that the mechanism explains the impact.
@@ -20,6 +20,7 @@ is that the mechanism explains the impact.
 | Impact | EXP-003a | On a real research task, does the policy change the answer? |
 | Impact | EXP-003b | Under real pressure, which policy wins, and at what cost? |
 | Impact | EXP-003c | Does the ranking hold as the agent model gets stronger? |
+| Impact | EXP-004 | Does the ranking transfer to a different task type? |
 
 ---
 
@@ -144,11 +145,44 @@ reasoning model still produces the final answer, which is the capability the axi
 The 8b and 70b tiers summarize with their own model. This is a real difference between the
 tiers and a caveat on the reasoning numbers, not a free lunch.
 
+## EXP-004, the impact: the ranking does not fully transfer, and that is the point
+
+The natural worry about everything above is that it is a FRAMES artifact. So we ran the same
+five arms on LoCoMo, a conversational-memory benchmark: each conversation has many sessions
+(tens of thousands of characters) that overflow the window, and many questions asked of that
+one conversation. The agent compacts the conversation once and answers from the compacted
+window. Same 8b agent, same 70b judge, 10 conversations x 10 questions per arm.
+
+| arm | FRAMES (8b) | LoCoMo (8b) |
+|---|---|---|
+| semantic (summary) | 0.57 | 0.27 |
+| importance (summary) | 0.50 | 0.26 |
+| reversible_hybrid (summary + retrievable raw) | 0.47 | 0.54 |
+| externalize (retrievable raw) | 0.40 | 0.55 |
+| truncate (blind drop) | 0.37 | 0.12 |
+
+Figure: `EXP-004_transfer_v1`. The ranking inverts at the top, and the reason is the task.
+
+**On conversational memory, retrieval wins and pure summarization loses.** The two retrieval
+arms lead, externalize 0.55 and the reversible hybrid 0.54; the two pure-summary arms fall to
+0.26 and 0.27, half their FRAMES accuracy; truncation collapses to 0.12. LoCoMo questions ask
+for specific scattered facts, a date, an item, who said what, which survive in a retrievable
+raw copy but get smoothed away in a 180-word summary. FRAMES multi-hop questions reward the
+opposite, a summarized reasoning chain. So the best single policy is task-dependent: semantic
+on FRAMES, externalize on LoCoMo.
+
+**The reversible hybrid is the one policy in the top group of both domains.** It is 0.47 on
+FRAMES (on the frontier, and the outright winner once the model is strong, EXP-003c) and 0.54
+on LoCoMo (tied for the lead). Because it carries both a summary and a retrievable raw copy,
+it picks up whichever mechanism the task needs, so it never lands in the loser group. The pure
+policies each win one domain and lose the other; the hybrid wins both. That cross-domain
+robustness, not a single best score, is the case for keeping the raw retrievable.
+
 ---
 
 ## The through-line
 
-Reading the five together, six claims are now supported by evidence.
+Reading the six together, seven claims are now supported by evidence.
 
 1. **Compaction policy matters only under pressure.** EXP-003a tied at low pressure;
    EXP-003b separated at high pressure; EXP-002 shows the same along the length axis.
@@ -164,6 +198,10 @@ Reading the five together, six claims are now supported by evidence.
    truncation stuck at the floor across all three models while every structure or
    retrieval preserving arm climbs, so a better agent makes the compaction choice matter
    more, not less.
+7. **The best single policy is task-dependent, but the hybrid is robust.** EXP-004 inverts
+   the FRAMES ranking on conversational memory (retrieval beats summary), yet the reversible
+   hybrid stays in the top group of both domains because it keeps both a summary and a
+   retrievable raw copy. Keeping the raw retrievable is the cross-domain hedge.
 
 ---
 
@@ -183,9 +221,15 @@ not held constant across all three tiers. The reversible hybrid reached 0.91 at 
 reasoning tier before regressing to 0.70 at n=30, a reminder of how wide the bars are at
 this scale.
 
+EXP-004 carries its own caveats: LoCoMo accuracy is judged the same way as FRAMES, but the
+questions skew toward dates and named entities, which favor exact retrieval; the dev model is
+again the 8b; and the per-conversation question sample is ten of roughly a hundred and fifty.
+The cross-domain inversion is large enough (a third of a point) to survive these, but the
+exact numbers are dev-scale.
+
 ## What is next
 
-EXP-004 adds LoCoMo, conversational memory, the second domain, to test whether the winning
-policy transfers across task types. A cleaner follow-up to EXP-003c would hold the
-summarizer model constant across all three tiers, isolating the answer model perfectly.
-After that, larger N for tight error bars, and the write-up.
+The two domains now give a clean transfer test, so the next steps are breadth and rigor: the
+70b and reasoning tiers on LoCoMo (does the hybrid's cross-domain lead grow with capability,
+as it did on FRAMES); a summarizer held constant across all tiers; larger N for tight bars;
+and then the write-up.

@@ -312,17 +312,27 @@ const exists = (f) => fs.existsSync(f);
     ["On the reasoning model, importance and our reversible-hybrid lead at 0.70.", true],
   ], { x: 6.2, y: 1.7, w: 3.3, fontSize: 12 });
 
-  // 26 — roadmap
-  s = content("Where this goes", "Roadmap", 26, 26);
+  // 26 — EXP-004 cross-domain transfer
+  s = content("EXP-004 · cross-domain transfer", "The ranking inverts — but the hybrid wins both", 26, 26);
+  fig(s, "EXP-004_transfer_v1.png", { x: 0.7, y: 1.5, w: 5.3, h: 3.6 });
   bullets(s, [
-    "EXP-003c done: the model axis shows the smart-vs-blind gap widens with capability.",
-    "EXP-004: LoCoMo conversational memory, the second domain.",
-    "Hold the summarizer constant across tiers; larger N for tighter error bars.",
-    "LangChain summary-memory as a baseline arm; then the paper.",
+    "Same 5 arms on LoCoMo (conversational memory) vs FRAMES (multi-hop factual).",
+    "Ranking inverts: on LoCoMo retrieval wins (externalize 0.55), pure summary loses (semantic 0.27).",
+    "Specific scattered facts survive a retrievable copy; they get smoothed away in a summary.",
+    ["reversible-hybrid is top group in BOTH domains (0.47 / 0.54) — it keeps both.", true],
+  ], { x: 6.2, y: 1.7, w: 3.3, fontSize: 12 });
+
+  // 27 — roadmap
+  s = content("Where this goes", "Roadmap", 27, 27);
+  bullets(s, [
+    "EXP-003c + 004 done: the gap widens with capability, and the hybrid transfers across domains.",
+    "70b and reasoning tiers on LoCoMo; summarizer held constant across tiers.",
+    "Larger N for tighter error bars; LangChain summary-memory as a baseline arm.",
+    "Then the paper.",
   ], { fontSize: 13.5 });
 
-  // 27 — references
-  s = content("References", "The literature this stands on", 27, 27);
+  // 28 — references
+  s = content("References", "The literature this stands on", 28, 28);
   bullets(s, [
     "Lost in the Middle, Liu et al., arXiv:2307.03172.",
     "RULER 2404.06654 · HELMET 2410.02694 · NoLiMa 2502.05167.",
@@ -331,7 +341,7 @@ const exists = (f) => fs.existsSync(f);
     "FRAMES 2409.12941 · LoCoMo 2402.17753.",
   ], { fontSize: 13, color: GREY });
 
-  // 28 — Find me (QR codes)
+  // 29 — Find me (QR codes)
   s = p.addSlide(); s.background = { color: INK };
   s.addText("FIND ME", { x: MX, y: 0.6, w: 9, h: 0.4, fontFace: SYNE, fontSize: 12, bold: true, color: PURPLE, charSpacing: 4, margin: 0 });
   s.addText("Clone it. Read the write-ups. Say hi.", { x: MX, y: 1.0, w: 9, h: 0.7, fontFace: SYNE, fontSize: 30, bold: true, color: WHITE, margin: 0 });
@@ -339,8 +349,8 @@ const exists = (f) => fs.existsSync(f);
   qrBlock(s, "qr_newsletter.png", "Learn Agentic AI", 3.25, 2.3, 1.25);
   qrBlock(s, "qr_x.png", "X · @above_almighty", 5.55, 2.3, 1.25);
   qrBlock(s, "qr_linkedin.png", "LinkedIn", 7.85, 2.3, 1.25);
-  footer(s, 28, true);
+  footer(s, 29, true);
 
   await p.writeFile({ fileName: path.join(__dirname, "founsi-context-engineering.pptx") });
-  console.log("wrote presentation/founsi-context-engineering.pptx (28 slides)");
+  console.log("wrote presentation/founsi-context-engineering.pptx (29 slides)");
 })();

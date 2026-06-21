@@ -1,0 +1,43 @@
+exp_id: EXP-004
+slug: locomo-transfer
+created_utc: 20260621-1805
+git_sha: 6a6e881
+python: 3.9.12
+deps:
+  litellm: 1.83.9
+  matplotlib: 3.7.1
+  requests: 2.32.4
+  python-dotenv: 1.0.1
+hypothesis: "The FRAMES compaction ranking transfers to conversational memory: under high compaction pressure, structure and retrieval preserving policies (importance, semantic, reversible-hybrid, externalize) preserve more LoCoMo QA accuracy than truncation, because conversational questions hinge on specific facts scattered across early sessions that blind truncation drops."
+assumptions:
+  - The agent reads all sessions of a conversation (oracle), so there is no retrieval-quality confound.
+  - Each conversation's sessions (tens of thousands of chars) overflow the 1500-token budget and force many compactions.
+  - The conversation is compacted once per policy; the same window answers every sampled question (amortized compaction).
+  - The 70b LLM judge credits paraphrase and date-format differences in short conversational answers.
+  - 8b is a dev model; the solid run repeats on the 70b.
+config:
+  exp_id: EXP-004
+  slug: locomo-transfer
+  hypothesis: "The FRAMES compaction ranking transfers to conversational memory: under high compaction pressure, structure and retrieval preserving policies (importance, semantic, reversible-hybrid, externalize) preserve more LoCoMo QA accuracy than truncation, because conversational questions hinge on specific facts scattered across early sessions that blind truncation drops."
+  assumptions:
+    - The agent reads all sessions of a conversation (oracle), so there is no retrieval-quality confound.
+    - Each conversation's sessions (tens of thousands of chars) overflow the 1500-token budget and force many compactions.
+    - The conversation is compacted once per policy; the same window answers every sampled question (amortized compaction).
+    - The 70b LLM judge credits paraphrase and date-format differences in short conversational answers.
+    - 8b is a dev model; the solid run repeats on the 70b.
+  model: meta/llama-3.1-8b-instruct
+  use_judge: true
+  judge_model: meta/llama-3.3-70b-instruct
+  policies:
+    - truncate
+    - externalize
+    - importance
+    - semantic
+    - reversible_hybrid
+  n_conversations: 10
+  q_per_conv: 10
+  budget: 1500
+  keep_recent: 4
+  seed: 0
+  cache_dir: experiments/.cache
+  resume: false
