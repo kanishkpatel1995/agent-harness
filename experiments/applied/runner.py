@@ -68,6 +68,9 @@ class Config:
     # Append "detailed thinking off" to the agent's compaction summaries (reasoning models
     # only) so summaries stay concise and fast; the answer keeps full reasoning.
     think_off_summarize: bool = False
+    # Run compaction summaries on this (fast) model instead of the agent model. The agent
+    # still answers. Used for the reasoning tier (verbose CoT makes self-summarizing slow).
+    summarizer: str = ""
 
 
 RUNS_DIR = Path("experiments/runs")
@@ -186,6 +189,12 @@ def run(cfg):
             log.info("summaries use 'detailed thinking off' (concise, fast); answer keeps reasoning")
     judge_llm = (NimLLM(model=cfg.judge_model, cache_dir=cfg.cache_dir,
                         transcript_path=transcript_path) if cfg.use_judge else None)
+    # Optional separate (fast) summarizer for compaction; the agent still answers. Used for
+    # the reasoning tier, whose verbose chain-of-thought makes self-summarizing prohibitive.
+    summarizer_llm = (NimLLM(model=cfg.summarizer, cache_dir=cfg.cache_dir,
+                             transcript_path=transcript_path) if cfg.summarizer else None)
+    if summarizer_llm is not None:
+        log.info(f"compaction summaries run on {cfg.summarizer}; agent {cfg.model} answers")
     items = frames.load(cfg.n_questions, cfg.seed)
     log.info(f"loaded {len(items)} FRAMES questions; policies={list(cfg.policies)}; "
              f"model={cfg.model}; budget={cfg.budget}; max_articles={cfg.max_articles}")
@@ -222,7 +231,7 @@ def run(cfg):
                 try:
                     row = answer_question(it, it.articles, llm, pol, store,
                                           budget=cfg.budget, keep_recent=cfg.keep_recent,
-                                          judge_llm=judge_llm)
+                                          judge_llm=judge_llm, summarizer_llm=summarizer_llm)
                 except Exception as e:  # one bad question must not kill the sweep
                     log.error(f"{pname} q{it.id} FAILED: {type(e).__name__}: {e}")
                     continue
@@ -273,6 +282,8 @@ def main():
                     help="raise the agent watchdog (s) for verbose reasoning models")
     ap.add_argument("--think-off-summarize", action="store_true",
                     help="reasoning models: keep compaction summaries concise (thinking off)")
+    ap.add_argument("--summarizer", default=None,
+                    help="run compaction summaries on this fast model; agent still answers")
     a = ap.parse_args()
     setup("DEBUG" if a.v >= 2 else "INFO")
     cfg = PRESETS[a.preset] if a.preset in PRESETS else Config()
@@ -298,6 +309,8 @@ def main():
         cfg.agent_timeout = a.agent_timeout
     if a.think_off_summarize:
         cfg.think_off_summarize = True
+    if a.summarizer:
+        cfg.summarizer = a.summarizer
     results_path = run(cfg)
     report(results_path)
 

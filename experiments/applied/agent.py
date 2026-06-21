@@ -31,7 +31,15 @@ def is_correct(answer, gold):
     return _norm(gold) in _norm(answer)
 
 
-def answer_question(item, articles, llm, policy, store, *, budget, keep_recent, judge_llm=None):
+def answer_question(item, articles, llm, policy, store, *, budget, keep_recent, judge_llm=None,
+                    summarizer_llm=None):
+    # summarizer_llm lets compaction run on a different (fast) model than the agent that
+    # answers. We use this for the reasoning tier: a fast instruct model writes the
+    # compaction summaries (the reasoning model's verbose chain-of-thought makes per-summary
+    # latency prohibitive), while the reasoning model still produces the final answer, which
+    # is the capability under test. Defaults to the agent model, so every other tier is
+    # unchanged (same model summarizes and answers).
+    sm = summarizer_llm or llm
     body, n_comp, tin, tout = [], 0, 0, 0
     for i, art in enumerate(articles):
         body += _read_msgs(i, art)
@@ -42,7 +50,7 @@ def answer_question(item, articles, llm, policy, store, *, budget, keep_recent, 
             if split <= 0:
                 break
             old, recent = body[:split], body[split:]
-            block, u = policy.compact(old, llm, store)
+            block, u = policy.compact(old, sm, store)
             tin += u.get("prompt_tokens", 0)
             tout += u.get("completion_tokens", 0)
             body = block + recent

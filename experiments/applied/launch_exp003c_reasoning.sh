@@ -15,11 +15,12 @@ while : ; do
   # EXP-003c dir), so this continues it and skips the cells already done.
   echo "=== EXP-003c reasoning tier (NIM $MODEL) attempt $attempt ==="
   date -u +"start %Y-%m-%dT%H:%M:%SZ"
-  # Default behavior keeps the nano's reasoning in a separate channel, so content is a
-  # clean concise summary (valid compaction); the cost is long hidden reasoning, so the
-  # watchdog is raised to let those legitimately-long calls finish.
+  # Compaction summaries run on a fast instruct model (llama-3.1-8b); the reasoning model
+  # only produces the final answer (the capability under test). This keeps the summary arms
+  # tractable -- the nano's verbose chain-of-thought made self-summarizing prohibitively slow
+  # (single cells wedging past 200s). Agent watchdog 120s covers the nano's answer reasoning.
   python3 -m experiments.applied --preset EXP003C --model "$MODEL" --judge --resume \
-          --agent-timeout 200 -v
+          --summarizer meta/llama-3.1-8b-instruct --agent-timeout 120 -v
   rc=$?
   if [ "$rc" -eq 0 ]; then echo "=== complete (rc=0) after $attempt attempt(s) ==="; break; fi
   echo "=== exited rc=$rc; re-resuming in 15s ==="
