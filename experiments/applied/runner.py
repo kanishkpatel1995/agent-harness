@@ -59,6 +59,9 @@ class Config:
     seed: int = 0
     cache_dir: str = "experiments/.cache"
     resume: bool = False
+    # Non-empty => run the AGENT against this OpenAI-compatible endpoint (e.g. LM Studio
+    # at http://localhost:1234/v1). The judge stays on NIM so the metric is held constant.
+    api_base: str = ""
 
 
 RUNS_DIR = Path("experiments/runs")
@@ -159,7 +162,14 @@ def run(cfg):
         results_path = ctx.results_path
         transcript_path = ctx.transcript_path
 
-    llm = NimLLM(model=cfg.model, cache_dir=cfg.cache_dir, transcript_path=transcript_path)
+    if cfg.api_base:
+        # Local agent: no rate-limit pacing, longer watchdog (local gen + first-load is
+        # slower per call than NIM, but there is no shared quota to protect).
+        llm = NimLLM(model=cfg.model, cache_dir=cfg.cache_dir, transcript_path=transcript_path,
+                     api_base=cfg.api_base, min_interval=0.0, soft_timeout=150, hard_timeout=180)
+        log.info(f"AGENT on local endpoint {cfg.api_base} (model={cfg.model}); judge stays on NIM")
+    else:
+        llm = NimLLM(model=cfg.model, cache_dir=cfg.cache_dir, transcript_path=transcript_path)
     judge_llm = (NimLLM(model=cfg.judge_model, cache_dir=cfg.cache_dir,
                         transcript_path=transcript_path) if cfg.use_judge else None)
     items = frames.load(cfg.n_questions, cfg.seed)
@@ -243,6 +253,8 @@ def main():
     ap.add_argument("--preset", default=None,
                     help="EXP003B (high-pressure 7-arm) or EXP003C (model axis, 5-arm)")
     ap.add_argument("--resume", action="store_true", help="resume the latest run dir, skip done cells")
+    ap.add_argument("--api-base", default=None,
+                    help="run the agent against this OpenAI-compatible endpoint (e.g. LM Studio)")
     a = ap.parse_args()
     setup("DEBUG" if a.v >= 2 else "INFO")
     cfg = PRESETS[a.preset] if a.preset in PRESETS else Config()
@@ -262,6 +274,8 @@ def main():
         cfg.use_judge = True
     if a.resume:
         cfg.resume = True
+    if a.api_base:
+        cfg.api_base = a.api_base
     results_path = run(cfg)
     report(results_path)
 

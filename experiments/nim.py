@@ -27,7 +27,7 @@ from pathlib import Path
 log = logging.getLogger("bench.model")
 
 
-def _completion_with_deadline(model, messages, temperature, soft_timeout, hard_timeout):
+def _completion_with_deadline(model, messages, temperature, soft_timeout, hard_timeout, extra=None):
     """Call litellm.completion with a hard wall-clock deadline.
 
     litellm's own ``timeout`` is not reliably enforced for the nvidia_nim transport:
@@ -43,7 +43,7 @@ def _completion_with_deadline(model, messages, temperature, soft_timeout, hard_t
     ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     try:
         fut = ex.submit(litellm.completion, model=model, messages=messages,
-                        temperature=temperature, timeout=soft_timeout)
+                        temperature=temperature, timeout=soft_timeout, **(extra or {}))
         return fut.result(timeout=hard_timeout)
     except concurrent.futures.TimeoutError:
         raise TimeoutError(f"hard watchdog: no response in {hard_timeout}s "
@@ -75,11 +75,22 @@ class NimResult:
 class NimLLM:
     def __init__(self, model="meta/llama-3.3-70b-instruct", *, temperature=0.2,
                  min_interval=1.6, max_retries=6, cache_dir="experiments/.cache",
-                 transcript_path=None):
-        self.model = model if model.startswith("nvidia_nim/") else f"nvidia_nim/{model}"
+                 transcript_path=None, api_base=None, api_key=None,
+                 soft_timeout=60, hard_timeout=75):
+        # api_base set => an OpenAI-compatible local endpoint (e.g. LM Studio). The
+        # agent model can run locally while the judge stays on NIM; we route by prefix.
+        self.api_base = api_base
+        if api_base:
+            self.model = model if model.startswith(("openai/", "lm_studio/")) else f"openai/{model}"
+            self.api_key = api_key or "lm-studio"
+        else:
+            self.model = model if model.startswith("nvidia_nim/") else f"nvidia_nim/{model}"
+            self.api_key = None
         self.temperature = temperature
         self.min_interval = min_interval
         self.max_retries = max_retries
+        self.soft_timeout = soft_timeout
+        self.hard_timeout = hard_timeout
         self.cache = Path(cache_dir)
         self.cache.mkdir(parents=True, exist_ok=True)
         # Per-run transcript of every prompt + response (the protocol's record).
@@ -87,8 +98,9 @@ class NimLLM:
         if self.transcript:
             self.transcript.parent.mkdir(parents=True, exist_ok=True)
         self._last = 0.0
+        # Local endpoints need no NVIDIA key; only require it for the NIM path.
         key = _load_env_key()
-        if not key:
+        if not key and not api_base:
             raise RuntimeError("No NVIDIA key found. Put NVIDIA_FREE_API_KEY in .env")
         self._key = key
 
@@ -115,12 +127,14 @@ class NimLLM:
             self._record(stage, messages, res)
             return res
 
+        extra = {"api_base": self.api_base, "api_key": self.api_key} if self.api_base else None
         last = None
         for attempt in range(self.max_retries):
             self._pace()
             try:
                 r = _completion_with_deadline(self.model, messages, self.temperature,
-                                              soft_timeout=60, hard_timeout=75)
+                                              soft_timeout=self.soft_timeout,
+                                              hard_timeout=self.hard_timeout, extra=extra)
                 m = r.choices[0].message
                 usage = {
                     "prompt_tokens": getattr(r.usage, "prompt_tokens", 0),
