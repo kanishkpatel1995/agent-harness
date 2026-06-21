@@ -35,7 +35,7 @@ RUNS = Path("experiments/runs")
 MODEL_ORDER = [
     ("meta/llama-3.1-8b-instruct", "Llama 3.1 8B\n(small instruct)"),
     ("meta/llama-3.3-70b-instruct", "Llama 3.3 70B\n(large instruct)"),
-    ("nvidia/llama-3.3-nemotron-super-49b-v1.5", "Nemotron 49B\n(reasoning)"),
+    ("nvidia/nemotron-3-nano-30b-a3b", "Nemotron 30B-A3B\n(reasoning)"),
 ]
 # The five arms that separated in EXP-003b and carry across the model axis.
 ARMS = ["truncate", "externalize", "importance", "semantic", "reversible_hybrid"]
@@ -102,9 +102,6 @@ def main():
             continue
         ax.plot(xpts, ys, marker="o", markersize=8, linewidth=1.8,
                 color=figstyle.POLICY_COLORS.get(pol, "#444444"), label=pol)
-        # Label each arm at its right-most available point.
-        ax.annotate(pol, (xpts[-1], ys[-1]), fontsize=8, xytext=(8, 0),
-                    textcoords="offset points", va="center")
         row = pol.ljust(18) + "".join(
             (f"{data[mid][pol][0]:.2f} (n{data[mid][pol][1]})".rjust(16)
              if pol in data[mid] else "-".rjust(16))

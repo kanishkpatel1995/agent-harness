@@ -1,0 +1,43 @@
+exp_id: EXP-003c
+slug: frames-model-axis
+created_utc: 20260621-0722
+git_sha: c8efad1
+python: 3.9.12
+deps:
+  litellm: 1.83.9
+  matplotlib: 3.7.1
+  requests: 2.32.4
+  python-dotenv: 1.0.1
+hypothesis: "The EXP-003b policy ranking is model-dependent: on a stronger instruct model and a reasoning model, structure-preserving compaction (semantic, importance) still leads on FRAMES accuracy, but the gaps between arms narrow as the model gets better at reconstructing dropped context, and the reversible-hybrid stays Pareto-efficient across all three model tiers."
+assumptions:
+  - Oracle retrieval (gold Wikipedia articles) isolates compaction from search quality.
+  - The same thirty FRAMES questions and cached articles are reused across models, so only the agent model changes.
+  - A fixed 70b judge grades every arm and every model, so the metric is held constant across the model axis.
+  - The reasoning model's chain-of-thought is parsed down to its final answer before judging.
+config:
+  exp_id: EXP-003c
+  slug: frames-model-axis
+  hypothesis: "The EXP-003b policy ranking is model-dependent: on a stronger instruct model and a reasoning model, structure-preserving compaction (semantic, importance) still leads on FRAMES accuracy, but the gaps between arms narrow as the model gets better at reconstructing dropped context, and the reversible-hybrid stays Pareto-efficient across all three model tiers."
+  assumptions:
+    - Oracle retrieval (gold Wikipedia articles) isolates compaction from search quality.
+    - The same thirty FRAMES questions and cached articles are reused across models, so only the agent model changes.
+    - A fixed 70b judge grades every arm and every model, so the metric is held constant across the model axis.
+    - The reasoning model's chain-of-thought is parsed down to its final answer before judging.
+  model: nvidia/nemotron-3-nano-30b-a3b
+  use_judge: true
+  judge_model: meta/llama-3.3-70b-instruct
+  policies:
+    - truncate
+    - externalize
+    - importance
+    - semantic
+    - reversible_hybrid
+  n_questions: 30
+  max_articles: 6
+  budget: 1500
+  chunk_chars: 1500
+  keep_recent: 4
+  seed: 0
+  cache_dir: experiments/.cache
+  resume: false
+  api_base: 
