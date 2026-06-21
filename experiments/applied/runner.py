@@ -59,6 +59,18 @@ class Config:
     seed: int = 0
     cache_dir: str = "experiments/.cache"
     resume: bool = False
+    # Non-empty => run the AGENT against this OpenAI-compatible endpoint (e.g. LM Studio
+    # at http://localhost:1234/v1). The judge stays on NIM so the metric is held constant.
+    api_base: str = ""
+    # Override the agent watchdog (seconds). Reasoning models emit long summaries that can
+    # legitimately exceed the default 75s; raising this stops the watchdog killing them.
+    agent_timeout: int = 0
+    # Append "detailed thinking off" to the agent's compaction summaries (reasoning models
+    # only) so summaries stay concise and fast; the answer keeps full reasoning.
+    think_off_summarize: bool = False
+    # Run compaction summaries on this (fast) model instead of the agent model. The agent
+    # still answers. Used for the reasoning tier (verbose CoT makes self-summarizing slow).
+    summarizer: str = ""
 
 
 RUNS_DIR = Path("experiments/runs")
@@ -107,6 +119,42 @@ EXP003B = Config(
 )
 
 
+# EXP-003c: the model axis. Same high-pressure regime as EXP-003b, but we vary the
+# agent model instead of the policy set. We keep only the five arms that separated in
+# EXP-003b (dropping recency and subagent, both Pareto-dominated there) and re-run them
+# on a strong instruct model and a reasoning model, to see whether the 8b ranking holds
+# as capability grows. The 8b numbers come from the EXP-003b run (same five arms).
+EXP003C = Config(
+    exp_id="EXP-003c",
+    slug="frames-model-axis",
+    hypothesis=(
+        "The EXP-003b policy ranking is model-dependent: on a stronger instruct model "
+        "and a reasoning model, structure-preserving compaction (semantic, importance) "
+        "still leads on FRAMES accuracy, but the gaps between arms narrow as the model "
+        "gets better at reconstructing dropped context, and the reversible-hybrid stays "
+        "Pareto-efficient across all three model tiers."
+    ),
+    assumptions=(
+        "Oracle retrieval (gold Wikipedia articles) isolates compaction from search quality.",
+        "The same thirty FRAMES questions and cached articles are reused across models, so only the agent model changes.",
+        "A fixed 70b judge grades every arm and every model, so the metric is held constant across the model axis.",
+        "The reasoning model's chain-of-thought is parsed down to its final answer before judging.",
+    ),
+    model="meta/llama-3.3-70b-instruct",
+    use_judge=True,
+    policies=("truncate", "externalize", "importance", "semantic", "reversible_hybrid"),
+    n_questions=30,
+    max_articles=6,
+    budget=1500,
+    chunk_chars=1500,
+    keep_recent=4,
+    seed=0,
+)
+
+
+PRESETS = {"EXP003B": EXP003B, "EXP003C": EXP003C}
+
+
 def run(cfg):
     # Resume reuses the latest run dir for this experiment and skips finished
     # cells, so an interrupted run loses nothing (the response cache also replays
@@ -123,9 +171,30 @@ def run(cfg):
         results_path = ctx.results_path
         transcript_path = ctx.transcript_path
 
-    llm = NimLLM(model=cfg.model, cache_dir=cfg.cache_dir, transcript_path=transcript_path)
+    if cfg.api_base:
+        # Local agent: no rate-limit pacing, longer watchdog (local gen + first-load is
+        # slower per call than NIM, but there is no shared quota to protect).
+        llm = NimLLM(model=cfg.model, cache_dir=cfg.cache_dir, transcript_path=transcript_path,
+                     api_base=cfg.api_base, min_interval=0.0, soft_timeout=150, hard_timeout=180)
+        log.info(f"AGENT on local endpoint {cfg.api_base} (model={cfg.model}); judge stays on NIM")
+    else:
+        to = ({"soft_timeout": cfg.agent_timeout, "hard_timeout": cfg.agent_timeout + 20}
+              if cfg.agent_timeout else {})
+        if cfg.think_off_summarize:
+            to["think_off_stages"] = {"summarize"}
+        llm = NimLLM(model=cfg.model, cache_dir=cfg.cache_dir, transcript_path=transcript_path, **to)
+        if cfg.agent_timeout:
+            log.info(f"agent watchdog raised to {cfg.agent_timeout}s (reasoning summaries run long)")
+        if cfg.think_off_summarize:
+            log.info("summaries use 'detailed thinking off' (concise, fast); answer keeps reasoning")
     judge_llm = (NimLLM(model=cfg.judge_model, cache_dir=cfg.cache_dir,
                         transcript_path=transcript_path) if cfg.use_judge else None)
+    # Optional separate (fast) summarizer for compaction; the agent still answers. Used for
+    # the reasoning tier, whose verbose chain-of-thought makes self-summarizing prohibitive.
+    summarizer_llm = (NimLLM(model=cfg.summarizer, cache_dir=cfg.cache_dir,
+                             transcript_path=transcript_path) if cfg.summarizer else None)
+    if summarizer_llm is not None:
+        log.info(f"compaction summaries run on {cfg.summarizer}; agent {cfg.model} answers")
     items = frames.load(cfg.n_questions, cfg.seed)
     log.info(f"loaded {len(items)} FRAMES questions; policies={list(cfg.policies)}; "
              f"model={cfg.model}; budget={cfg.budget}; max_articles={cfg.max_articles}")
@@ -162,7 +231,7 @@ def run(cfg):
                 try:
                     row = answer_question(it, it.articles, llm, pol, store,
                                           budget=cfg.budget, keep_recent=cfg.keep_recent,
-                                          judge_llm=judge_llm)
+                                          judge_llm=judge_llm, summarizer_llm=summarizer_llm)
                 except Exception as e:  # one bad question must not kill the sweep
                     log.error(f"{pname} q{it.id} FAILED: {type(e).__name__}: {e}")
                     continue
@@ -204,11 +273,20 @@ def main():
     ap.add_argument("--max-articles", type=int, default=None)
     ap.add_argument("--judge", action="store_true", help="grade with the LLM judge, not substring")
     ap.add_argument("--chunk-chars", type=int, default=None, help="split articles into chunks of N chars")
-    ap.add_argument("--preset", default=None, help="EXP003B for the high-pressure config")
+    ap.add_argument("--preset", default=None,
+                    help="EXP003B (high-pressure 7-arm) or EXP003C (model axis, 5-arm)")
     ap.add_argument("--resume", action="store_true", help="resume the latest run dir, skip done cells")
+    ap.add_argument("--api-base", default=None,
+                    help="run the agent against this OpenAI-compatible endpoint (e.g. LM Studio)")
+    ap.add_argument("--agent-timeout", type=int, default=None,
+                    help="raise the agent watchdog (s) for verbose reasoning models")
+    ap.add_argument("--think-off-summarize", action="store_true",
+                    help="reasoning models: keep compaction summaries concise (thinking off)")
+    ap.add_argument("--summarizer", default=None,
+                    help="run compaction summaries on this fast model; agent still answers")
     a = ap.parse_args()
     setup("DEBUG" if a.v >= 2 else "INFO")
-    cfg = EXP003B if a.preset == "EXP003B" else Config()
+    cfg = PRESETS[a.preset] if a.preset in PRESETS else Config()
     if a.n:
         cfg.n_questions = a.n
     if a.chunk_chars is not None:
@@ -225,6 +303,14 @@ def main():
         cfg.use_judge = True
     if a.resume:
         cfg.resume = True
+    if a.api_base:
+        cfg.api_base = a.api_base
+    if a.agent_timeout:
+        cfg.agent_timeout = a.agent_timeout
+    if a.think_off_summarize:
+        cfg.think_off_summarize = True
+    if a.summarizer:
+        cfg.summarizer = a.summarizer
     results_path = run(cfg)
     report(results_path)
 

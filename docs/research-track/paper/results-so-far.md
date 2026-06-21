@@ -1,6 +1,6 @@
 # Results So Far: From Mechanism to Impact
 
-*A synthesis of the four experiments run to date, written so the story is clear in
+*A synthesis of the five experiments run to date, written so the story is clear in
 one read. All numbers are LLM-judged where noted. Figures live in
 `presentation/figures/`. This is the running results section for the paper.*
 
@@ -8,7 +8,7 @@ one read. All numbers are LLM-judged where noted. Figures live in
 
 ## The shape of the argument
 
-We ran four experiments in two layers. The first layer asks a mechanical question,
+We ran five experiments in two layers. The first layer asks a mechanical question,
 does compaction preserve information. The second asks the question that matters,
 does compaction help a real agent answer real questions. The point of the pairing
 is that the mechanism explains the impact.
@@ -19,6 +19,7 @@ is that the mechanism explains the impact.
 | Mechanism | EXP-002 | As context grows, does compaction beat raw context? |
 | Impact | EXP-003a | On a real research task, does the policy change the answer? |
 | Impact | EXP-003b | Under real pressure, which policy wins, and at what cost? |
+| Impact | EXP-003c | Does the ranking hold as the agent model gets stronger? |
 
 ---
 
@@ -105,11 +106,49 @@ sits on the frontier and is not dominated, but it is not the accuracy winner. We
 report that plainly rather than overselling the novel method. The accuracy champion
 is a simple policy, semantic clustering.
 
+## EXP-003c, the impact: the model axis, and the gap that widens with capability
+
+We then ran the same five separating arms across three agent models: the small instruct
+8b, the large instruct 70b, and a reasoning model (Nemotron 30B-A3B). The judge is held
+constant at the 70b across every tier, so only the agent model changes. The result is the
+model-dependence map.
+
+| arm | 8B | 70B | reasoning |
+|---|---|---|---|
+| truncate (blind drop) | 0.37 | 0.27 | 0.40 |
+| externalize (retrieval) | 0.40 | 0.63 | 0.67 |
+| importance (keep verbatim) | 0.50 | 0.60 | 0.70 |
+| semantic (cluster) | 0.57 | 0.53 | 0.63 |
+| reversible_hybrid (ours) | 0.47 | 0.67 | 0.70 |
+
+Figure: `EXP-003c_modelaxis_v1`. Two things stand out, and together they are the
+strongest claim in the paper.
+
+**Capability does not rescue blind truncation.** Truncate sits at the floor on every
+model, 0.37, 0.27, 0.40. A stronger or reasoning model cannot recover information that was
+dropped without a trace, because there is nothing to reason over. The line is flat along
+the whole capability axis.
+
+**Every structure or retrieval preserving arm climbs with capability, so the gap widens.**
+Externalize, importance, semantic, and the reversible hybrid all rise from the 8b to the
+reasoning model and converge near the top, 0.63 to 0.70. The distance between the best
+compaction and blind truncation grows from about 0.2 on the 8b to about 0.3 on the
+reasoning model. A better model has more to gain from a clean compacted context and more to
+lose from a blind one. On the reasoning model the reversible hybrid and importance lead the
+cluster at 0.70.
+
+A methodological note we report plainly: on the reasoning tier the compaction summaries are
+written by a fast instruct model (8b), because the reasoning model's verbose chain of
+thought makes self-summarizing prohibitively slow (single cells stalled past 200s). The
+reasoning model still produces the final answer, which is the capability the axis measures.
+The 8b and 70b tiers summarize with their own model. This is a real difference between the
+tiers and a caveat on the reasoning numbers, not a free lunch.
+
 ---
 
 ## The through-line
 
-Reading the four together, five claims are now supported by evidence.
+Reading the five together, six claims are now supported by evidence.
 
 1. **Compaction policy matters only under pressure.** EXP-003a tied at low pressure;
    EXP-003b separated at high pressure; EXP-002 shows the same along the length axis.
@@ -121,6 +160,10 @@ Reading the four together, five claims are now supported by evidence.
    sub-agent arm fills the empty cell from the literature on the single-agent side.
 5. **Structure-preserving compaction is the move.** Keep facts verbatim or cluster
    by topic, do not flatten.
+6. **The smart-versus-blind gap widens with model capability.** EXP-003c shows blind
+   truncation stuck at the floor across all three models while every structure or
+   retrieval preserving arm climbs, so a better agent makes the compaction choice matter
+   more, not less.
 
 ---
 
@@ -134,10 +177,15 @@ importance is within noise, while the dominated policies and the overall frontie
 shape are robust. The reversible hybrid result is a single configuration and may
 change with a stronger model or a tuned store.
 
+The reasoning tier carries an extra caveat: its compaction summaries are written by a
+separate fast model, so the answer model is the controlled variable but the summarizer is
+not held constant across all three tiers. The reversible hybrid reached 0.91 at n=11 on the
+reasoning tier before regressing to 0.70 at n=30, a reminder of how wide the bars are at
+this scale.
+
 ## What is next
 
-EXP-003c runs the same bake-off on the 70b model and a reasoning model, which gives
-the model-dependence map and may reorder the top cluster. EXP-004 adds LoCoMo,
-conversational memory, the second domain, to test whether the winning policy
-transfers across task types. After that, larger N for tight error bars, and the
-write-up.
+EXP-004 adds LoCoMo, conversational memory, the second domain, to test whether the winning
+policy transfers across task types. A cleaner follow-up to EXP-003c would hold the
+summarizer model constant across all three tiers, isolating the answer model perfectly.
+After that, larger N for tight error bars, and the write-up.

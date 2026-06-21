@@ -13,6 +13,7 @@ NVIDIA_FREE_API_KEY, so we map one to the other once, here.
 
 from __future__ import annotations
 
+import concurrent.futures
 import datetime
 import hashlib
 import json
@@ -24,6 +25,31 @@ from dataclasses import dataclass
 from pathlib import Path
 
 log = logging.getLogger("bench.model")
+
+
+def _completion_with_deadline(model, messages, temperature, soft_timeout, hard_timeout, extra=None):
+    """Call litellm.completion with a hard wall-clock deadline.
+
+    litellm's own ``timeout`` is not reliably enforced for the nvidia_nim transport:
+    if the server accepts the connection then holds it open without sending bytes, the
+    read timeout can fail to fire and the call wedges forever (observed at 0% CPU with
+    no error). We run the call on a worker thread and bound it with
+    ``future.result(timeout=...)`` so a wedged socket raises instead of hanging the
+    whole sweep. The orphaned thread is abandoned (Python cannot kill it) and will die
+    when its connection eventually drops; that is acceptable for a bounded dev run.
+    """
+    import litellm
+
+    ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        fut = ex.submit(litellm.completion, model=model, messages=messages,
+                        temperature=temperature, timeout=soft_timeout, **(extra or {}))
+        return fut.result(timeout=hard_timeout)
+    except concurrent.futures.TimeoutError:
+        raise TimeoutError(f"hard watchdog: no response in {hard_timeout}s "
+                           "(litellm ignored its own timeout)")
+    finally:
+        ex.shutdown(wait=False)
 
 
 def _load_env_key():
@@ -49,11 +75,28 @@ class NimResult:
 class NimLLM:
     def __init__(self, model="meta/llama-3.3-70b-instruct", *, temperature=0.2,
                  min_interval=1.6, max_retries=6, cache_dir="experiments/.cache",
-                 transcript_path=None):
-        self.model = model if model.startswith("nvidia_nim/") else f"nvidia_nim/{model}"
+                 transcript_path=None, api_base=None, api_key=None,
+                 soft_timeout=60, hard_timeout=75,
+                 think_off_stages=frozenset(), think_off_max_tokens=600):
+        # For reasoning models (Nemotron), append the "detailed thinking off" directive on
+        # the given stages so compaction summaries stay concise instead of triggering long
+        # chain-of-thought. The answer stage keeps full reasoning (that is what we measure).
+        self.think_off_stages = frozenset(think_off_stages)
+        self.think_off_max_tokens = think_off_max_tokens
+        # api_base set => an OpenAI-compatible local endpoint (e.g. LM Studio). The
+        # agent model can run locally while the judge stays on NIM; we route by prefix.
+        self.api_base = api_base
+        if api_base:
+            self.model = model if model.startswith(("openai/", "lm_studio/")) else f"openai/{model}"
+            self.api_key = api_key or "lm-studio"
+        else:
+            self.model = model if model.startswith("nvidia_nim/") else f"nvidia_nim/{model}"
+            self.api_key = None
         self.temperature = temperature
         self.min_interval = min_interval
         self.max_retries = max_retries
+        self.soft_timeout = soft_timeout
+        self.hard_timeout = hard_timeout
         self.cache = Path(cache_dir)
         self.cache.mkdir(parents=True, exist_ok=True)
         # Per-run transcript of every prompt + response (the protocol's record).
@@ -61,8 +104,9 @@ class NimLLM:
         if self.transcript:
             self.transcript.parent.mkdir(parents=True, exist_ok=True)
         self._last = 0.0
+        # Local endpoints need no NVIDIA key; only require it for the NIM path.
         key = _load_env_key()
-        if not key:
+        if not key and not api_base:
             raise RuntimeError("No NVIDIA key found. Put NVIDIA_FREE_API_KEY in .env")
         self._key = key
 
@@ -78,8 +122,19 @@ class NimLLM:
         blob = json.dumps([self.model, self.temperature, messages], sort_keys=True, ensure_ascii=False)
         return hashlib.sha256(blob.encode()).hexdigest()[:24]
 
+    def _with_think_off(self, messages):
+        out = [dict(m) for m in messages]
+        for m in out:
+            if m.get("role") == "system":
+                m["content"] = "detailed thinking off\n" + (m.get("content") or "")
+                return out
+        return [{"role": "system", "content": "detailed thinking off"}] + out
+
     # --- the call -----------------------------------------------------------
     def complete(self, messages, stage="call"):
+        think_off = stage in self.think_off_stages
+        if think_off:
+            messages = self._with_think_off(messages)
         ck = self._ckey(messages)
         cp = self.cache / f"{ck}.json"
         if cp.exists():
@@ -89,14 +144,17 @@ class NimLLM:
             self._record(stage, messages, res)
             return res
 
-        import litellm
-
+        extra = {"api_base": self.api_base, "api_key": self.api_key} if self.api_base else {}
+        if think_off:
+            extra["max_tokens"] = self.think_off_max_tokens  # concise summary, hard-bounded
+        extra = extra or None
         last = None
         for attempt in range(self.max_retries):
             self._pace()
             try:
-                r = litellm.completion(model=self.model, messages=messages,
-                                       temperature=self.temperature, timeout=90)
+                r = _completion_with_deadline(self.model, messages, self.temperature,
+                                              soft_timeout=self.soft_timeout,
+                                              hard_timeout=self.hard_timeout, extra=extra)
                 m = r.choices[0].message
                 usage = {
                     "prompt_tokens": getattr(r.usage, "prompt_tokens", 0),

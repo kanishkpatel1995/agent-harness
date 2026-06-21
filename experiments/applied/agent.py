@@ -31,7 +31,15 @@ def is_correct(answer, gold):
     return _norm(gold) in _norm(answer)
 
 
-def answer_question(item, articles, llm, policy, store, *, budget, keep_recent, judge_llm=None):
+def answer_question(item, articles, llm, policy, store, *, budget, keep_recent, judge_llm=None,
+                    summarizer_llm=None):
+    # summarizer_llm lets compaction run on a different (fast) model than the agent that
+    # answers. We use this for the reasoning tier: a fast instruct model writes the
+    # compaction summaries (the reasoning model's verbose chain-of-thought makes per-summary
+    # latency prohibitive), while the reasoning model still produces the final answer, which
+    # is the capability under test. Defaults to the agent model, so every other tier is
+    # unchanged (same model summarizes and answers).
+    sm = summarizer_llm or llm
     body, n_comp, tin, tout = [], 0, 0, 0
     for i, art in enumerate(articles):
         body += _read_msgs(i, art)
@@ -42,7 +50,7 @@ def answer_question(item, articles, llm, policy, store, *, budget, keep_recent, 
             if split <= 0:
                 break
             old, recent = body[:split], body[split:]
-            block, u = policy.compact(old, llm, store)
+            block, u = policy.compact(old, sm, store)
             tin += u.get("prompt_tokens", 0)
             tout += u.get("completion_tokens", 0)
             body = block + recent
@@ -63,6 +71,10 @@ def answer_question(item, articles, llm, policy, store, *, budget, keep_recent, 
     tout += r.usage.get("completion_tokens", 0)
 
     ans = r.content or ""
+    # Reasoning models (Nemotron, R1, QwQ) wrap chain-of-thought in <think>...</think>.
+    # Strip it so we extract and judge the final answer, not the scratchpad. This is a
+    # no-op for instruct models, which never emit the tags, so every arm stays comparable.
+    ans = re.sub(r"<think>.*?</think>", "", ans, flags=re.I | re.S).strip()
     m = re.search(r"answer:\s*(.+)$", ans, re.I | re.S)
     final = (m.group(1) if m else ans).strip()
     ok = is_correct(final, item.answer)
