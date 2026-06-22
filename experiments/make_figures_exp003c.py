@@ -58,11 +58,25 @@ def _acc_by_policy(results_csv):
     g = defaultdict(list)
     for r in csv.DictReader(results_csv.open()):
         g[r["policy"]].append(int(r["correct"]))
-    return {p: st.mean(v) for p, v in g.items() if v}, {p: len(v) for p, v in g.items()}
+    stat, n = {}, {}
+    for p, v in g.items():
+        if v:
+            lo, hi = _boot_ci(v)
+            stat[p] = (st.mean(v), lo, hi)  # mean, 95% bootstrap CI
+            n[p] = len(v)
+    return stat, n
+
+
+def _boot_ci(vals, n_boot=4000, seed=42):
+    import random
+    rng = random.Random(seed)
+    N = len(vals)
+    boots = sorted(sum(vals[rng.randrange(N)] for _ in range(N)) / N for _ in range(n_boot))
+    return boots[int(0.025 * n_boot)], boots[int(0.975 * n_boot)]
 
 
 def collect():
-    """model -> {policy -> (accuracy, n)} from every EXP-003b/EXP-003c run dir."""
+    """model -> {policy -> (acc, lo, hi, n)} from every EXP-003b/EXP-003c run dir."""
     data = defaultdict(dict)
     for rundir in sorted(RUNS.glob("EXP-003b__*")) + sorted(RUNS.glob("EXP-003c__*")):
         rc = rundir / "results.csv"
@@ -72,9 +86,9 @@ def collect():
         if not model:
             continue
         acc, n = _acc_by_policy(rc)
-        for p, a in acc.items():
+        for p, s in acc.items():
             # Later run dirs win (resumed/complete runs overwrite partials).
-            data[model][p] = (a, n[p])
+            data[model][p] = (s[0], s[1], s[2], n[p])  # mean, lo, hi, n
     return data
 
 
@@ -93,17 +107,18 @@ def main():
     figstyle.apply(seed=42)
     fig, ax = plt.subplots(figsize=(7.2, 4.8))
     for pol in ARMS:
-        ys, xpts, cells = [], [], []
+        ys, xpts, los, his = [], [], [], []
         for x, (mid, _) in zip(xs, present):
             if pol in data[mid]:
-                a, n = data[mid][pol]
-                ys.append(a); xpts.append(x); cells.append(n)
+                a, lo, hi, n = data[mid][pol]
+                ys.append(a); xpts.append(x); los.append(a - lo); his.append(hi - a)
         if not ys:
             continue
-        ax.plot(xpts, ys, marker="o", markersize=8, linewidth=1.8,
-                color=figstyle.POLICY_COLORS.get(pol, "#444444"), label=pol)
+        ax.errorbar(xpts, ys, yerr=[los, his], marker="o", markersize=7, linewidth=1.8,
+                    capsize=3, elinewidth=1.0,
+                    color=figstyle.POLICY_COLORS.get(pol, "#444444"), label=pol)
         row = pol.ljust(18) + "".join(
-            (f"{data[mid][pol][0]:.2f} (n{data[mid][pol][1]})".rjust(16)
+            (f"{data[mid][pol][0]:.2f} (n{data[mid][pol][3]})".rjust(16)
              if pol in data[mid] else "-".rjust(16))
             for mid, _ in present)
         print(row)
