@@ -178,6 +178,27 @@ it picks up whichever mechanism the task needs, so it never lands in the loser g
 policies each win one domain and lose the other; the hybrid wins both. That cross-domain
 robustness, not a single best score, is the case for keeping the raw retrievable.
 
+**The LoCoMo model axis is the mirror of FRAMES.** We re-ran all five arms on the 70b. On
+FRAMES, a stronger model lifted the summary arms (EXP-003c). On LoCoMo it does the opposite,
+or nothing:
+
+| arm | 8B | 70B |
+|---|---|---|
+| externalize (retrieval) | 0.55 | 0.55 |
+| reversible_hybrid (both) | 0.54 | 0.53 |
+| importance (summary) | 0.26 | 0.23 |
+| semantic (summary) | 0.27 | 0.17 |
+| truncate (blind) | 0.12 | 0.09 |
+
+Figure: `EXP-004_modelaxis_v1`. The two retrieval arms are flat at the top across both
+models; the summary arms are flat to falling, semantic dropping hardest, 0.27 to 0.17. A
+stronger model cannot rescue a lossy summary, because the missing fact is simply not in it;
+worse, the stronger model is more willing to admit it does not know, which costs it the
+lucky guesses the smaller model sometimes got. So the cross-domain claim now holds across
+the capability axis too: retrieval wins on conversational memory at every model size, and
+the reversible hybrid rides its retrieval half to the top group in all four cells
+(8b/70b x FRAMES/LoCoMo).
+
 ---
 
 ## The through-line
@@ -229,7 +250,8 @@ exact numbers are dev-scale.
 
 ## What is next
 
-The two domains now give a clean transfer test, so the next steps are breadth and rigor: the
-70b and reasoning tiers on LoCoMo (does the hybrid's cross-domain lead grow with capability,
-as it did on FRAMES); a summarizer held constant across all tiers; larger N for tight bars;
-and then the write-up.
+Both the FRAMES and LoCoMo model axes are now run (8b and 70b on both domains), and they tell
+opposite capability stories that share one constant: the reversible hybrid is in the top group
+of every cell. Remaining for rigor: a reasoning tier on LoCoMo; a summarizer held constant
+across all tiers; larger N for tight bars; LangChain summary-memory as a baseline arm; and then
+the write-up.
