@@ -195,14 +195,14 @@ A reviewer who sees you list these *before* they ask trusts the result more.
 
 - **`paper/compaction-bakeoff.md`** — 4–6 pages: Question · Method (policies +
   needle metric) · Setup · Results (the Pareto figure) · Threats · Reproduction.
-- **`experiments/bakeoff.py`** + **`experiments/plot.py`** + committed
-  `results.csv` — so the claim is reproducible with one command.
+- **`experiments/bench`** (the bake-off runner) + **`experiments/make_figures*.py`**
+  + committed `results.csv` — so the claim is reproducible with one command.
 - **A blog-paper version** for Learn Agentic AI, same content, narrative voice.
 - **Stretch:** submit to a workshop or post to arXiv-adjacent venue once the
   result holds across a couple of task domains.
 
 The bar, repeated from the README: **the paper is not done until someone else can
-run `python experiments/bakeoff.py` and get your figure.**
+run `python -m experiments.bench` and get your figure.**
 
 ---
 

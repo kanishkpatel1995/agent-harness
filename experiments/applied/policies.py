@@ -1,13 +1,23 @@
-"""The four applied compaction policies for EXP-003a.
+"""The seven compaction policies for the applied (real-task) bake-off.
 
-Common interface: compact(old, llm, store) returns (replacement_block, usage).
+This is the applied sibling of `experiments/policies.py`. The controlled probe
+there summarizes synthetic needle transcripts; here the same policies run against
+real FRAMES/LoCoMo tasks, so the interface gains a `store` for retrieval:
+
+    compact(old, llm, store) -> (replacement_block, usage)
+
 The `retrieves` flag tells the agent whether to pull from the store at answer time.
 
-  truncate           : drop the old turns. No store, no retrieval.
-  recency            : one summary in the window. No store.
+  truncate           : drop the old turns. No store, no retrieval. The cost floor.
+  recency            : one summary in the window. No store. The shipped default.
+  importance         : keep the highest-signal turns verbatim, summarize the rest.
+  semantic           : cluster the old turns by topic, summarize each cluster.
   externalize        : drop from window, push raw to store, retrieve at answer.
+  subagent           : isolate the read in a sub-agent, return only its findings.
   reversible_hybrid  : summary in window AND raw pushed to store + retrieve at
                        answer. The novel arm: lossy summary plus reversible raw.
+
+Registered in POLICIES at the bottom; the runner swaps one by name per arm.
 """
 
 from __future__ import annotations

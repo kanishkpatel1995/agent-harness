@@ -116,5 +116,5 @@ unit-by-unit timing is in [`curriculum.md`](curriculum.md).
   the experiment code merged into the repo so anyone can reproduce it.
 
 That last clause — *anyone can reproduce it* — is the whole ethos of this repo
-and the room you're presenting to. The paper isn't done until `python
-experiments/bakeoff.py` reproduces your figure on someone else's laptop.
+and the room you're presenting to. The paper isn't done until `python -m
+experiments.bench` reproduces your figure on someone else's laptop.

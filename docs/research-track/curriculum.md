@@ -285,7 +285,7 @@ across seeds for noise, and collect the metrics from Units 1 and 5.
 **Build.** `experiments/bakeoff.py`: for each `(policy, run_length, seed)`, build
 an agent with needles injected, run it, and record `{needle_recall_report,
 needle_recall_scratchpad, total_tokens_billed, est_usd, steps, n_compactions}`.
-Write results to `experiments/results.csv`. Then `experiments/plot.py` →
+Write results to a run dir's `results.csv`. Then `experiments/make_figures*.py` →
 quality-vs-cost Pareto, one line per policy, points at increasing run-lengths.
 **Methodology note you must resolve:** with the pure FakeLLM the *summary text*
 is canned, so you can't study summary *quality* offline. Either (a) run the

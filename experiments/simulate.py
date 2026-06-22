@@ -1,5 +1,9 @@
 """Mode A: build a needle-bearing transcript, compact it with a policy, probe.
 
+Part of the ORIGINAL single-file probe (used by `experiments/bakeoff.py`). The
+maintained equivalent is `experiments/bench/runner.py` + `bench/window.py`. Kept
+for provenance; see `experiments/bench` for the package version.
+
 This is the controlled fidelity experiment. We do NOT run a live agent; we
 deterministically construct the message list a research agent WOULD accumulate
 (assistant 'reading source i' + a tool result page containing needles), run the

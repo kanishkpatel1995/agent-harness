@@ -37,7 +37,8 @@ experiments/runs/**/figures/
 # Node (deck build tooling — pptxgenjs, sharp)
 node_modules/
 
-# Large binaries / built decks (keep the deck, ignore strays)
+# Large binaries / built decks (keep the two real decks, ignore strays)
 *.pptx
 !presentation/founsi-context-engineering.pptx
+!presentation/founsi-talk.pptx
 *.key

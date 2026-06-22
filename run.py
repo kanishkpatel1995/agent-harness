@@ -6,10 +6,13 @@ Examples:
     python run.py "context engineering for long-running agents"
 
     # Real model via litellm (needs an API key in .env):
-    HARNESS_OFFLINE=0 HARNESS_MODEL=gpt-4o-mini python run.py "your topic"
+    python run.py --real --model gpt-4o-mini "your topic"
 
     # Local model (Ollama):
-    HARNESS_OFFLINE=0 HARNESS_MODEL=ollama/llama3.1 python run.py "your topic"
+    python run.py --real --model ollama/llama3.1 "your topic"
+
+`--real` swaps FakeLLM for a live model; `--model` overrides HARNESS_MODEL. The
+offline path uses cached web fixtures; set HARNESS_OFFLINE=0 for real search/fetch.
 """
 
 import argparse

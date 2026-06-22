@@ -7,7 +7,12 @@ for the lifecycle and rules.
 
 | ID | Slug | Hypothesis (short) | Status | Latest result |
 |----|------|--------------------|--------|---------------|
-| EXP-001 | compaction-bakeoff | Summary policies (recency/importance/semantic) preserve more needle-facts per token than truncation; a budget B\* exists trading fact-loss vs lost-in-the-middle | in&nbsp;progress | truncate worst (~0.2 rate); summary policies ~0.5; semantic B\*=1000 (8b dev) |
+| EXP-001 | compaction-bakeoff | Summary policies (recency/importance/semantic) preserve more needle-facts per token than truncation; a budget B\* exists trading fact-loss vs lost-in-the-middle | done | truncate worst (~0.2 rate); summary policies ~0.5; semantic B\*=1000 (8b dev) |
+| EXP-002 | length-degradation | As raw context grows the no-compaction baseline degrades (lost-in-the-middle); a fixed-budget summary holds recall higher past a crossover | done | crossover confirmed: past the mid-range a short clean summary beats the long raw context on needle recall, so compacting early is net-positive |
+| EXP-003a | frames-compaction | On FRAMES multi-hop QA, summary and reversible-hybrid compaction preserve more answer accuracy per token than truncation | done | low-pressure tie: a loose budget barely fires compaction, so the policies do not separate (substring). Motivated the high-pressure EXP-003b |
+| EXP-003b | frames-pressure | Under high compaction pressure the policies separate on FRAMES accuracy and the reversible-hybrid sits on the cost-quality frontier | done | semantic 0.57 / importance 0.50 lead; recency (the shipped default) Pareto-dominated by truncate (7x cost, =acc); subagent 5x cost, =acc; reversible_hybrid Pareto-efficient (0.47), not the winner. n=30, 8b, judged |
+| EXP-003c | frames-model-axis | The FRAMES ranking is model-dependent; gaps narrow as the model gets better at reconstructing dropped context, reversible-hybrid stays Pareto-efficient | done | capability does not rescue summarization: ranking holds across 8b/70b/reasoning. With the summarizer held constant on the 70b, semantic 0.67 leads, reversible_hybrid 0.53 (the original 0.67 hybrid lead was partly a summarizer artifact) |
+| EXP-004 | locomo-transfer | The FRAMES ranking transfers to conversational memory (LoCoMo): structure and retrieval preserving policies beat truncation | done | ranking INVERTS cross-domain: on LoCoMo retrieval wins where FRAMES favored summary (externalize/semantic top, +0.27..+0.38, p<0.0001, n=100). reversible_hybrid is in the top group of all four FRAMES/LoCoMo x 8B/70B cells |
 
 ## How to add an experiment
 

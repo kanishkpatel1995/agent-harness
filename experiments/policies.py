@@ -1,8 +1,14 @@
-"""The four compaction policies — the independent variable of the bake-off.
+"""The four controlled-probe compaction policies — the bake-off's independent variable.
 
-Each takes the evicted 'old' messages and returns a SHORT replacement block plus
-the token usage it spent. They keep whole turns (never strand a tool result from
-its assistant call).
+These run against synthetic needle transcripts in the controlled probe (Mode A).
+The applied, real-task versions live in `experiments/applied/policies.py`: same
+names, but their `compact()` takes a retrieval `store` and adds three arms
+(externalize, subagent, reversible_hybrid). This module's helpers (`_summarize`,
+`_text`, `ZERO`) are imported and reused there.
+
+Each policy takes the evicted 'old' messages and returns a SHORT replacement block
+plus the token usage it spent. They keep whole turns (never strand a tool result
+from its assistant call).
 
   truncate    : keep nothing but a marker.            0 API calls (cost floor).
   recency     : one LLM summary of everything old.    1 call (repo's default).

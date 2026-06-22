@@ -91,6 +91,8 @@ For real web search/fetch instead of offline fixtures: `HARNESS_OFFLINE=0`.
 7. **`harness/llm.py`** / **`harness/fake_llm.py`** — the provider-agnostic
    client and its deterministic offline twin.
 
+For a deeper module-by-module walkthrough, see [`docs/architecture.md`](docs/architecture.md).
+
 ---
 
 ## The five context-engineering moves (and where they live)
@@ -102,6 +104,33 @@ For real web search/fetch instead of offline fixtures: `HARNESS_OFFLINE=0`.
 | **Compact** | The stale middle is summarized and the raw turns dropped | `context.py` |
 | **Externalize** | Findings live in a file, not the window | `memory.py` |
 | **Cap** | Steps, tokens, and dollars are hard-limited | `budget.py` |
+
+---
+
+## The research track: which way of forgetting is best?
+
+The harness above teaches the moves. The `experiments/` tree measures them. It runs a
+reproducible **compaction bake-off**: seven policies (truncate, recency, importance, semantic,
+externalize, sub-agent, and a reversible hybrid that keeps both a summary and a retrievable raw
+copy), scored by answer accuracy per token on two task types (FRAMES multi-hop QA and LoCoMo
+conversational memory) across three model sizes, with a fixed LLM judge.
+
+```bash
+python -m experiments.applied -v        # the applied FRAMES/LoCoMo bake-off
+python experiments/stats.py <results.csv> armA:armB    # bootstrap CIs + McNemar tests
+```
+
+Every run writes a self-contained folder (`experiments/runs/EXP-NNN__slug__UTC/`) with the
+config, every prompt and response, the results, and the figure, so any number is reproducible.
+
+- [`experiments/REGISTRY.md`](experiments/REGISTRY.md) — one row per experiment.
+- [`docs/research-track/`](docs/research-track/) — the protocol, the paper draft, the literature.
+- [`docs/research-track/paper/results-so-far.md`](docs/research-track/paper/results-so-far.md) — the running results synthesis.
+- [`DECISIONS.md`](DECISIONS.md) — every design call we made, and every one we changed.
+
+Headline so far: the best policy depends on the task (summarize for factual, keep the raw for
+memory), the shipped default (recency summary) is dominated by plain truncation under pressure,
+and the reversible hybrid is the one policy never in the loser group.
 
 ---
 
@@ -122,35 +151,42 @@ and a full end-to-end run.
 
 ```
 agent-harness/
-├── run.py                  CLI entrypoint
-├── harness/
+├── run.py                  CLI entrypoint (the offline demo)
+├── harness/                THE TEACHING HARNESS (read this first)
 │   ├── loop.py             the agent loop (read first)
 │   ├── context.py          ContextManager — pinning, compaction (the heart)
+│   ├── agent.py            assembles the deep-research agent from the parts
 │   ├── memory.py           Scratchpad — external memory
 │   ├── budget.py           steps/tokens/$ caps
 │   ├── tools.py            tool registry + schemas
 │   ├── trace.py            per-step context visualization
 │   ├── llm.py              provider-agnostic client (litellm)
 │   └── fake_llm.py         deterministic offline model
-├── tools/
-│   ├── web.py              search + fetch (offline fixtures or real)
-│   └── fixtures/           cached pages for the offline demo
-├── examples/run_offline_demo.py
+├── experiments/            THE RESEARCH: the compaction bake-off
+│   ├── applied/            FRAMES + LoCoMo runners, the 7 policies, judge, embed store
+│   ├── bench/              the controlled mechanism probe (window, run-context)
+│   ├── nim.py              cached, watchdog-guarded model client (free NIM API)
+│   ├── stats.py            bootstrap CIs + McNemar tests
+│   ├── make_figures_*.py   publication figures (figstyle.py)
+│   └── runs/               one folder per run: manifest + prompts + results + figures
+├── presentation/           the talk: build_deck.js, build_talk_deck.js, brand, figures
 ├── docs/
-│   ├── architecture.md     deeper walkthrough
+│   ├── architecture.md     deeper module walkthrough
 │   ├── demo-script.md      what to type and say on stage
-│   └── references.md       where to go to learn more
+│   ├── references.md       where to go to learn more
+│   └── research-track/     protocol · curriculum · paper draft · literature
+├── DECISIONS.md            every design call, and every one we changed
 └── tests/
 ```
 
 ---
 
-## Not in scope (on purpose)
+## Not in scope, on purpose
 
-This is a teaching harness, not a framework. No retries-with-backoff, no
-parallel tool calls, no vector store, no eval suite. Those are good next steps —
-see `docs/architecture.md` for where each would slot in. The goal here is that
-you can read the whole thing in 20 minutes and understand exactly how a
-long-running agent keeps its head straight.
+The **harness** is a teaching artifact: no retries-with-backoff, no parallel tool calls. You can
+read the whole thing in 20 minutes and understand exactly how a long-running agent keeps its head
+straight. The **research track** (`experiments/`) is where the heavier machinery lives, a vector
+store and a full eval/bake-off, kept deliberately separate so the teaching core stays minimal.
+See `docs/architecture.md` for how the pieces fit.
 
 MIT licensed. Built for Learn Agentic AI — https://learnagentic.substack.com

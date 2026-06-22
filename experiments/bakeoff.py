@@ -1,5 +1,11 @@
 """Run the compaction bake-off: policies x run-lengths x seeds.
 
+ORIGINAL single-file version of the controlled probe (EXP-001). The maintained
+version is the `experiments/bench` package (`python -m experiments.bench`), which
+adds presets, structured logging, and self-contained run directories. This file is
+kept for provenance and as the smallest readable end-to-end script; new work goes
+to bench. The real-task (FRAMES/LoCoMo) bake-off lives in `experiments/applied`.
+
 Checkpointed + resumable: each finished cell is appended to results.csv with a
 done-guard, so a rate-limit storm (or Ctrl-C) never loses progress — just rerun.
 
