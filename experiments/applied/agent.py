@@ -31,15 +31,10 @@ def is_correct(answer, gold):
     return _norm(gold) in _norm(answer)
 
 
-def answer_question(item, articles, llm, policy, store, *, budget, keep_recent, judge_llm=None,
-                    summarizer_llm=None):
-    # summarizer_llm lets compaction run on a different (fast) model than the agent that
-    # answers. We use this for the reasoning tier: a fast instruct model writes the
-    # compaction summaries (the reasoning model's verbose chain-of-thought makes per-summary
-    # latency prohibitive), while the reasoning model still produces the final answer, which
-    # is the capability under test. Defaults to the agent model, so every other tier is
-    # unchanged (same model summarizes and answers).
-    sm = summarizer_llm or llm
+def read_and_compact(articles, summarizer, policy, store, *, budget, keep_recent):
+    """Read text chunks in order, compacting with the policy whenever the window exceeds
+    the budget. Returns (body, n_comp, tokens_in, tokens_out). Domain-agnostic — FRAMES
+    articles or LoCoMo sessions — so both runners share one compaction implementation."""
     body, n_comp, tin, tout = [], 0, 0, 0
     for i, art in enumerate(articles):
         body += _read_msgs(i, art)
@@ -50,7 +45,7 @@ def answer_question(item, articles, llm, policy, store, *, budget, keep_recent, 
             if split <= 0:
                 break
             old, recent = body[:split], body[split:]
-            block, u = policy.compact(old, sm, store)
+            block, u = policy.compact(old, summarizer, store)
             tin += u.get("prompt_tokens", 0)
             tout += u.get("completion_tokens", 0)
             body = block + recent
@@ -58,36 +53,55 @@ def answer_question(item, articles, llm, policy, store, *, budget, keep_recent, 
             inner += 1
             if _toks(body) >= before or inner >= 50:
                 break
+    return body, n_comp, tin, tout
 
+
+def answer_from_window(body, store, question, gold, llm, policy, *, judge_llm=None):
+    """Answer one question from an already-compacted window. LoCoMo compacts a conversation
+    once and asks many questions of the same window, so this is split out from the read.
+    Returns (correct, final_answer, retrieved_chars, tokens_in, tokens_out)."""
     window_text = "\n".join((m.get("content") or "") for m in body)
-    retrieved = store.retrieve(item.question, k=3) if (policy.retrieves and store is not None) else ""
+    retrieved = store.retrieve(question, k=3) if (policy.retrieves and store is not None) else ""
     ctx = window_text + (("\n\n[RETRIEVED DETAIL]\n" + retrieved) if retrieved else "")
 
     r = llm.complete([
         {"role": "system", "content": ANSWER_SYS},
-        {"role": "user", "content": f"Context:\n{ctx[:14000]}\n\nQuestion: {item.question}\nAnswer:"},
+        {"role": "user", "content": f"Context:\n{ctx[:14000]}\n\nQuestion: {question}\nAnswer:"},
     ], stage="answer")
-    tin += r.usage.get("prompt_tokens", 0)
-    tout += r.usage.get("completion_tokens", 0)
+    tin = r.usage.get("prompt_tokens", 0)
+    tout = r.usage.get("completion_tokens", 0)
 
-    ans = r.content or ""
-    # Reasoning models (Nemotron, R1, QwQ) wrap chain-of-thought in <think>...</think>.
-    # Strip it so we extract and judge the final answer, not the scratchpad. This is a
-    # no-op for instruct models, which never emit the tags, so every arm stays comparable.
-    ans = re.sub(r"<think>.*?</think>", "", ans, flags=re.I | re.S).strip()
+    # Reasoning models wrap chain-of-thought in <think>...</think>; strip it so we judge the
+    # final answer, not the scratchpad (no-op for instruct models).
+    ans = re.sub(r"<think>.*?</think>", "", (r.content or ""), flags=re.I | re.S).strip()
     m = re.search(r"answer:\s*(.+)$", ans, re.I | re.S)
     final = (m.group(1) if m else ans).strip()
-    ok = is_correct(final, item.answer)
+    ok = is_correct(final, gold)
     if judge_llm is not None:
         from experiments.applied.judge import judge as _judge
-        jok, ju = _judge(judge_llm, item.question, final, item.answer)
+        jok, ju = _judge(judge_llm, question, final, gold)
         tin += ju.get("prompt_tokens", 0)
         tout += ju.get("completion_tokens", 0)
         ok = bool(jok)
+    return ok, final, len(retrieved), tin, tout
+
+
+def answer_question(item, articles, llm, policy, store, *, budget, keep_recent, judge_llm=None,
+                    summarizer_llm=None):
+    # summarizer_llm lets compaction run on a different (fast) model than the agent that
+    # answers (used for the reasoning tier). Defaults to the agent model, so every other tier
+    # is unchanged (same model summarizes and answers).
+    sm = summarizer_llm or llm
+    body, n_comp, tin, tout = read_and_compact(articles, sm, policy, store,
+                                               budget=budget, keep_recent=keep_recent)
+    ok, final, rchars, atin, atout = answer_from_window(
+        body, store, item.question, item.answer, llm, policy, judge_llm=judge_llm)
+    tin += atin
+    tout += atout
     log.debug(f"q{item.id} [{policy.name}] correct={int(ok)} comp={n_comp} ans={final[:60]!r}")
     return {
         "correct": int(ok), "answer": final[:200], "gold": item.answer[:120],
         "n_compactions": n_comp, "final_window_tokens": _toks(body),
-        "retrieved_chars": len(retrieved),
+        "retrieved_chars": rchars,
         "tokens_in": tin, "tokens_out": tout, "tokens_total": tin + tout,
     }
