@@ -211,6 +211,13 @@ this task it favors the single-agent side. The accuracy leaders are structure-pr
 policies (semantic, importance). Our reversible hybrid is Pareto-efficient at 0.47 but not the
 accuracy winner here, which we report plainly.
 
+At n=30 these FRAMES accuracy gaps are within noise. The 95% bootstrap intervals span about
+plus or minus 0.17, and even semantic over truncation reaches only p=0.07 (McNemar exact test
+on the paired per-question outcomes). The robust claims here are the two cost dominations, where
+the accuracy difference is exactly zero: recency ties truncation and sub-agent ties importance
+(both p=1.0) at seven and five times the cost respectively. Separating the accuracy leaders
+needs larger N, which we prioritize in the scale-up.
+
 ### 5.4 The model axis on FRAMES: the gap widens with capability (EXP-003c)
 
 We re-ran the five separating arms across 8B, 70B, and the reasoning model, judge fixed.
@@ -255,6 +262,12 @@ half their FRAMES accuracy. LoCoMo questions ask for specific scattered facts, a
 who said what, which survive in a retrievable raw copy but get smoothed away in a summary.
 FRAMES multi-hop questions reward the opposite, a summarized reasoning chain. So the best
 single policy is task-dependent: semantic on FRAMES, externalize on LoCoMo.
+
+Unlike the FRAMES cell, these LoCoMo gaps are large and significant. Retrieval beats
+summarization by 0.27 to 0.28 (externalize and the hybrid each over semantic, p<0.0001,
+McNemar, n=100), the hybrid beats truncation by 0.42 (p<0.0001), and the hybrid is
+statistically tied with externalize at the top (difference 0.01, p=1.0). The inversion is real,
+not an artifact of small samples.
 
 ### 5.6 Capability does not rescue summarization on memory (EXP-004, 70B)
 
@@ -314,10 +327,16 @@ task in advance, keep both, because the hybrid never lands in the loser group.
 ## 7. Limitations
 
 These are dev-scale results and we state the gaps plainly. Question counts are tens to a few
-hundred per cell, not thousands; we report point estimates and approximate binomial error bars
-(about plus or minus 0.09 at n=30), and we do not yet report multiple seeds or significance
-tests, so within-cluster gaps (for example semantic versus importance on FRAMES) are inside the
-noise while the dominated policies and the inversion are robust. The agent models are open and
+hundred per cell, not thousands. We report 95% bootstrap confidence intervals and McNemar exact
+tests on the paired per-question outcomes (`experiments/stats.py`), and they show a clean split.
+The LoCoMo results are statistically robust: retrieval beats summarization by 0.27 to 0.38 with
+p below 0.0001 at n=100, and the reversible hybrid ties externalize at the top. The cost
+dominations are robust by construction: recency and sub-agent match truncation and importance on
+accuracy (difference 0.00, p=1.0) while costing seven and five times as much. The FRAMES accuracy
+*rankings*, however, are within noise at n=30: intervals span about plus or minus 0.17 and even
+semantic over truncation reaches only p=0.07. So the cross-domain inversion and the cost results
+are solid, while the FRAMES accuracy ordering needs the larger N of the planned scale-up to be
+significant. We do not yet report multiple seeds. The agent models are open and
 mid-scale (8B, 70B, one reasoning model) on a single free API; no frontier model is included.
 Related systems (MemGPT, Mem0, LangChain summary memory) are cited but not yet run as
 head-to-head arms. The reasoning tier uses a separate summarizer, an acknowledged confound. The
