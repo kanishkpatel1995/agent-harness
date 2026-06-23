@@ -20,14 +20,18 @@ import json
 import logging
 import os
 import random
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 log = logging.getLogger("bench.model")
 
+_SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"  # braille spinner frames for the --story live indicator
 
-def _completion_with_deadline(model, messages, temperature, soft_timeout, hard_timeout, extra=None):
+
+def _completion_with_deadline(model, messages, temperature, soft_timeout, hard_timeout,
+                              extra=None, spin=False):
     """Call litellm.completion with a hard wall-clock deadline.
 
     litellm's own ``timeout`` is not reliably enforced for the nvidia_nim transport:
@@ -37,6 +41,10 @@ def _completion_with_deadline(model, messages, temperature, soft_timeout, hard_t
     ``future.result(timeout=...)`` so a wedged socket raises instead of hanging the
     whole sweep. The orphaned thread is abandoned (Python cannot kill it) and will die
     when its connection eventually drops; that is acceptable for a bounded dev run.
+
+    With ``spin`` (the --story live indicator), we poll the future and animate a spinner
+    on stdout while we wait, then clear the line — so the terminal shows activity instead
+    of a frozen screen during a real model call.
     """
     import litellm
 
@@ -44,7 +52,28 @@ def _completion_with_deadline(model, messages, temperature, soft_timeout, hard_t
     try:
         fut = ex.submit(litellm.completion, model=model, messages=messages,
                         temperature=temperature, timeout=soft_timeout, **(extra or {}))
-        return fut.result(timeout=hard_timeout)
+        if not spin:
+            return fut.result(timeout=hard_timeout)
+        label = model.split("/")[-1]
+        start = time.monotonic()
+        i = 0
+        while True:
+            try:
+                r = fut.result(timeout=0.12)
+                sys.stdout.write("\r" + " " * 60 + "\r")  # clear the spinner line
+                sys.stdout.flush()
+                return r
+            except concurrent.futures.TimeoutError:
+                elapsed = time.monotonic() - start
+                if elapsed > hard_timeout:
+                    sys.stdout.write("\r" + " " * 60 + "\r")
+                    sys.stdout.flush()
+                    raise TimeoutError(f"hard watchdog: no response in {hard_timeout}s "
+                                       "(litellm ignored its own timeout)")
+                sys.stdout.write(f"\r  \033[38;5;141m{_SPIN[i % len(_SPIN)]}\033[0m "
+                                 f"\033[2m{label} thinking… {elapsed:.0f}s\033[0m ")
+                sys.stdout.flush()
+                i += 1
     except concurrent.futures.TimeoutError:
         raise TimeoutError(f"hard watchdog: no response in {hard_timeout}s "
                            "(litellm ignored its own timeout)")
@@ -104,6 +133,7 @@ class NimLLM:
         if self.transcript:
             self.transcript.parent.mkdir(parents=True, exist_ok=True)
         self._last = 0.0
+        self.spinner = False  # set True (e.g. by --story) to animate a live indicator during calls
         # Local endpoints need no NVIDIA key; only require it for the NIM path.
         key = _load_env_key()
         if not key and not api_base:
@@ -154,7 +184,8 @@ class NimLLM:
             try:
                 r = _completion_with_deadline(self.model, messages, self.temperature,
                                               soft_timeout=self.soft_timeout,
-                                              hard_timeout=self.hard_timeout, extra=extra)
+                                              hard_timeout=self.hard_timeout, extra=extra,
+                                              spin=(self.spinner and sys.stdout.isatty()))
                 m = r.choices[0].message
                 usage = {
                     "prompt_tokens": getattr(r.usage, "prompt_tokens", 0),

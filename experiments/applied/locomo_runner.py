@@ -107,6 +107,10 @@ def run(cfg):
     llm = NimLLM(model=cfg.model, cache_dir=cfg.cache_dir, transcript_path=transcript_path)
     judge_llm = (NimLLM(model=cfg.judge_model, cache_dir=cfg.cache_dir,
                         transcript_path=transcript_path) if cfg.use_judge else None)
+    if cfg.story:  # animate a live indicator during real calls
+        for c in (llm, judge_llm):
+            if c is not None:
+                c.spinner = True
 
     convs = locomo.load()[:cfg.n_conversations]
     log.info(f"loaded {len(convs)} LoCoMo conversations; policies={list(cfg.policies)}; "

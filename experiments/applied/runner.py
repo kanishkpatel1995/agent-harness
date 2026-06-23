@@ -214,6 +214,10 @@ def run(cfg):
                              transcript_path=transcript_path) if cfg.summarizer else None)
     if summarizer_llm is not None:
         log.info(f"compaction summaries run on {cfg.summarizer}; agent {cfg.model} answers")
+    if cfg.story:  # animate a live indicator during real calls
+        for c in (llm, judge_llm, summarizer_llm):
+            if c is not None:
+                c.spinner = True
     items = frames.load(cfg.n_questions, cfg.seed)
     log.info(f"loaded {len(items)} FRAMES questions; policies={list(cfg.policies)}; "
              f"model={cfg.model}; budget={cfg.budget}; max_articles={cfg.max_articles}")
