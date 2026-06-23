@@ -238,6 +238,33 @@ const exists = (f) => fs.existsSync(f);
     ["If the agent forgot its goal, the goal wasn't in the list. No magic — just: what do we put in the list?", true],
   ], { y: 3.6, fontSize: 13.5 });
 
+  // 5b — the design space: five architectures
+  s = content("The design space", "Five architectures keep an agent alive.", 0, 25);
+  [["Truncate", "drop the\noldest turns", FLOOR], ["Compact", "summarize\nthe middle", PURPLE],
+   ["Externalize", "move raw\nto a store", GREEN], ["Isolate", "fan out to\nsub-agents", PDARK],
+   ["Hybrid", "keep both\nat once", AMBER]].forEach((a, i) => {
+    const x = MX + i * 1.78;
+    s.addShape(RECT, { x, y: 2.0, w: 1.62, h: 1.7, fill: { color: WHITE }, line: { color: a[2], width: 1.5 } });
+    s.addShape(RECT, { x, y: 2.0, w: 1.62, h: 0.13, fill: { color: a[2] }, line: { type: "none" } });
+    s.addText(a[0], { x, y: 2.28, w: 1.62, h: 0.4, align: "center", fontFace: SYNE, bold: true, fontSize: 15, color: INK, margin: 0 });
+    s.addText(a[1], { x: x + 0.08, y: 2.75, w: 1.46, h: 0.9, align: "center", fontFace: MAN, fontSize: 11.5, color: GREY, margin: 0, lineSpacing: 14 });
+  });
+  s.addText([{ text: "When the window's over budget, every system makes one of these moves — plus a choice of where the dropped bytes go. ", options: { color: INK } },
+             { text: "Yours, LangChain's, MemGPT's, Mem0's: all points on one map.", options: { color: PDARK, bold: true } }],
+    { x: MX, y: 4.05, w: 8.8, h: 0.7, fontFace: MAN, fontSize: 13, valign: "top", margin: 0 });
+  caption(s, "truncate · compact · externalize · isolate · hybrid (composes the rest). Full map: docs/ARCHITECTURES.md.", 4.98);
+
+  // 5c — how the OSS memory systems map
+  s = content("You're not alone", "How the famous memory systems map.", 0, 23);
+  rows(s, [
+    ["LangGraph · trim_messages", "→ truncate. Keep the last N tokens, drop the rest."],
+    ["LangChain · summary-buffer", "→ compact. The shipped default — and it loses to truncate under pressure."],
+    ["Mem0", "→ externalize. An LLM extracts + dedupes facts into a vector/graph store."],
+    ["MemGPT / Letta", "→ pin + externalize. Agent-managed core blocks + an archival DB."],
+    ["Anthropic multi-agent research", "→ isolate. Sub-agents, each with its own fresh context window."],
+    ["Sakana Fugu  ·  shipped Jun 22 2026", "→ isolate / orchestrate. Routes across models — cited, not benched."],
+  ], 1.5, 0.6);
+
   // 6 — Five moves, one matters
   s = content("The levers", "Five moves. One matters tonight.", 6, 26);
   rows(s, [
@@ -335,6 +362,25 @@ const exists = (f) => fs.existsSync(f);
              { text: "git clone github.com/kanishkpatel1995/agent-harness && python run.py", options: { color: WHITE } },
              { text: "   — no API key. Swap models with --model.", options: { color: MID } }],
     { x: MX, y: 4.88, w: 8.8, h: 0.3, fontFace: MONO, fontSize: 10.5, margin: 0 });
+  footer(s, ++PG, true);
+
+  // 8b — the compare demo (one interface, seven ways)
+  s = p.addSlide(); s.background = { color: INK };
+  s.addText("LIVE DEMO · ONE INTERFACE, SEVEN WAYS", { x: MX, y: 0.5, w: 8.8, h: 0.3, fontFace: SYNE, fontSize: 11, bold: true, color: PURPLE, charSpacing: 2, margin: 0 });
+  s.addText("Watch them forget — side by side.", { x: MX, y: 0.84, w: 8.8, h: 0.6, fontFace: SYNE, fontSize: 26, bold: true, color: WHITE, margin: 0 });
+  term(s, MX, 1.55, 8.8, 3.05, [
+    { text: "$ python -m harness.compare \"quantum networking startups\"\n\n", options: { color: ICE } },
+    { text: "policy             architecture   llm   fact?\n", options: { color: "8A8694" } },
+    { text: "truncate           truncate        0    ✗ lost\n", options: { color: "8A8694" } },
+    { text: "recency            compact         1    ✗ lost\n", options: { color: "8A8694" } },
+    { text: "importance         compact         1    ✓ kept\n", options: { color: "6FCf97" } },
+    { text: "semantic           compact         2    ✗ lost\n", options: { color: "8A8694" } },
+    { text: "externalize        externalize     0    ✓ kept\n", options: { color: "6FCf97" } },
+    { text: "subagent           isolate         6    ✗ lost   ← priciest, still loses\n", options: { color: AMBER } },
+    { text: "reversible_hybrid  hybrid          1    ✓ kept   ← cheap, and recovers", options: { color: "6FCf97" } },
+  ]);
+  s.addText("Same planted fact, seven policies, one offline command (no key). Truncate drops it, summaries blur it, the sub-agent fan-out is priciest and still loses — the hybrid is the cheap one that recovers it.",
+    { x: MX, y: 4.72, w: 8.8, h: 0.5, fontFace: MAN, fontSize: 11.5, color: ICE, margin: 0 });
   footer(s, ++PG, true);
 
   // 9 — The open question -> the bake-off

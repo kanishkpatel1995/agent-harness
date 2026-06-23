@@ -1,0 +1,10 @@
+# Optional — only needed to run the open-source memory ADAPTER arms.
+# The core harness + the seven hand-rolled policies + `python -m harness.compare`
+# all run with NONE of these (offline, no key). Install per adapter you want to bench.
+
+chromadb>=0.5                 # ChromaStore (the externalize backend)
+sentence-transformers>=3.0    # offline embeddings for ChromaStore
+langchain>=0.3                # LangChainSummary (the shipped-default arm)
+langchain-openai>=0.2         # an LC chat model for the summarizer
+mem0ai>=0.1                   # Mem0Memory (extract->update facts)
+letta-client>=0.1             # LettaArchival (MemGPT-style; also needs a Letta server)
