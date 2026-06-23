@@ -1,0 +1,44 @@
+exp_id: EXP-007
+slug: frames-langchain-vs-recency
+created_utc: 20260623-1942
+git_sha: a790e3a
+python: 3.9.12
+deps:
+  litellm: 1.83.9
+  matplotlib: 3.7.1
+  requests: 2.32.5
+  python-dotenv: 1.0.1
+hypothesis: "LangChain's ConversationSummaryBufferMemory (the framework's shipped default) does not beat our 15-line `recency` on FRAMES: both are rolling-summary compaction, so they land in the same accuracy band; the framework adds a dependency, not accuracy."
+assumptions:
+  - Both arms summarize on the same 8B model (LangChain via an OpenAI-compatible NIM endpoint).
+  - Oracle articles + budget 1500 + chunked reads force many compaction events per question.
+  - The 70b judge grades both arms identically.
+  - LangChain summarization tokens are captured via get_openai_callback for a fair cost axis.
+config:
+  exp_id: EXP-007
+  slug: frames-langchain-vs-recency
+  hypothesis: "LangChain's ConversationSummaryBufferMemory (the framework's shipped default) does not beat our 15-line `recency` on FRAMES: both are rolling-summary compaction, so they land in the same accuracy band; the framework adds a dependency, not accuracy."
+  assumptions:
+    - Both arms summarize on the same 8B model (LangChain via an OpenAI-compatible NIM endpoint).
+    - Oracle articles + budget 1500 + chunked reads force many compaction events per question.
+    - The 70b judge grades both arms identically.
+    - LangChain summarization tokens are captured via get_openai_callback for a fair cost axis.
+  model: meta/llama-3.1-8b-instruct
+  use_judge: true
+  judge_model: meta/llama-3.3-70b-instruct
+  policies:
+    - recency
+    - langchain_summary
+  n_questions: 20
+  max_articles: 6
+  budget: 1500
+  chunk_chars: 1500
+  keep_recent: 4
+  seed: 7
+  cache_dir: experiments/.cache
+  resume: false
+  api_base: 
+  agent_timeout: 0
+  think_off_summarize: false
+  summarizer: 
+  store: nim
