@@ -77,6 +77,7 @@ class Config:
     #   "mem0"   -> Mem0Backend: extract-then-dedupe facts (LLM) + nv-embedqa, chroma vector db
     # The agent and judge are unchanged; only the memory backend differs (EXP-006).
     store: str = "nim"
+    story: bool = False   # narrate each cell: question, retrieved chunks, answer, gold, verdict
 
 
 RUNS_DIR = Path("experiments/runs")
@@ -262,7 +263,8 @@ def run(cfg):
                 try:
                     row = answer_question(it, it.articles, llm, pol, store,
                                           budget=cfg.budget, keep_recent=cfg.keep_recent,
-                                          judge_llm=judge_llm, summarizer_llm=summarizer_llm)
+                                          judge_llm=judge_llm, summarizer_llm=summarizer_llm,
+                                          story=cfg.story)
                 except Exception as e:  # one bad question must not kill the sweep
                     log.error(f"{pname} q{it.id} FAILED: {type(e).__name__}: {e}")
                     continue
@@ -318,6 +320,8 @@ def main():
                     help="run compaction summaries on this fast model; agent still answers")
     ap.add_argument("--store", default=None, choices=["nim", "chroma", "mem0"],
                     help="retrieval backend for retrieving policies: nim (nv-embedqa), chroma (MiniLM), mem0 (deduped facts)")
+    ap.add_argument("--story", action="store_true",
+                    help="narrate each cell: question, retrieved chunks, answer, gold, judge verdict")
     a = ap.parse_args()
     setup("DEBUG" if a.v >= 2 else "INFO")
     cfg = PRESETS[a.preset] if a.preset in PRESETS else Config()
@@ -347,6 +351,8 @@ def main():
         cfg.summarizer = a.summarizer
     if a.store:
         cfg.store = a.store
+    if a.story:
+        cfg.story = True
     results_path = run(cfg)
     report(results_path)
 

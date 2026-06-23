@@ -16,6 +16,12 @@ from experiments.bench.logsetup import get
 
 log = get("agent")
 
+
+class _C:
+    """Tiny ANSI palette for --story narration (live terminal)."""
+    B = "\033[1m"; D = "\033[2m"; G = "\033[38;5;71m"; R = "\033[38;5;167m"; P = "\033[38;5;141m"; E = "\033[0m"
+
+
 ANSWER_SYS = (
     "You are answering a research question using ONLY the provided context. "
     "Think briefly, then end with a line 'Answer: <final answer>'. Be concise and specific."
@@ -31,7 +37,7 @@ def is_correct(answer, gold):
     return _norm(gold) in _norm(answer)
 
 
-def read_and_compact(articles, summarizer, policy, store, *, budget, keep_recent):
+def read_and_compact(articles, summarizer, policy, store, *, budget, keep_recent, story=False):
     """Read text chunks in order, compacting with the policy whenever the window exceeds
     the budget. Returns (body, n_comp, tokens_in, tokens_out). Domain-agnostic — FRAMES
     articles or LoCoMo sessions — so both runners share one compaction implementation."""
@@ -53,10 +59,15 @@ def read_and_compact(articles, summarizer, policy, store, *, budget, keep_recent
             inner += 1
             if _toks(body) >= before or inner >= 50:
                 break
+    if story:
+        stored = len(getattr(store, "texts", [])) if store is not None else 0
+        extra = f"  ->  {_C.B}stored {stored} chunks{_C.E}" if store is not None else ""
+        print(f"\n{_C.P}{_C.B}━━ {policy.name} ━━{_C.E}  read {len(articles)} sources  ->  "
+              f"{n_comp} compactions  ->  window {_toks(body)} tok{extra}")
     return body, n_comp, tin, tout
 
 
-def answer_from_window(body, store, question, gold, llm, policy, *, judge_llm=None):
+def answer_from_window(body, store, question, gold, llm, policy, *, judge_llm=None, story=False):
     """Answer one question from an already-compacted window. LoCoMo compacts a conversation
     once and asks many questions of the same window, so this is split out from the read.
     Returns (correct, final_answer, retrieved_chars, tokens_in, tokens_out)."""
@@ -83,19 +94,29 @@ def answer_from_window(body, store, question, gold, llm, policy, *, judge_llm=No
         tin += ju.get("prompt_tokens", 0)
         tout += ju.get("completion_tokens", 0)
         ok = bool(jok)
+    if story:
+        print(f"  {_C.B}Q{_C.E} \"{(question or '')[:90]}\"")
+        if policy.retrieves and retrieved:
+            print(f"    {_C.D}retrieved (the chunks it pulled back to answer):{_C.E}")
+            for chunk in [c for c in retrieved.split('\n\n') if c.strip()][:3]:
+                print(f"    {_C.D}  › {' '.join(chunk.split())[:96]}{_C.E}")
+        elif policy.retrieves:
+            print(f"    {_C.D}retrieved: (nothing matched in the store){_C.E}")
+        verdict = f"{_C.G}✓ correct{_C.E}" if ok else f"{_C.R}✗ wrong{_C.E}"
+        print(f"    answer: {_C.B}\"{(final or '')[:70]}\"{_C.E}   gold: \"{(gold or '')[:50]}\"   judge: {verdict}")
     return ok, final, len(retrieved), tin, tout
 
 
 def answer_question(item, articles, llm, policy, store, *, budget, keep_recent, judge_llm=None,
-                    summarizer_llm=None):
+                    summarizer_llm=None, story=False):
     # summarizer_llm lets compaction run on a different (fast) model than the agent that
     # answers (used for the reasoning tier). Defaults to the agent model, so every other tier
     # is unchanged (same model summarizes and answers).
     sm = summarizer_llm or llm
     body, n_comp, tin, tout = read_and_compact(articles, sm, policy, store,
-                                               budget=budget, keep_recent=keep_recent)
+                                               budget=budget, keep_recent=keep_recent, story=story)
     ok, final, rchars, atin, atout = answer_from_window(
-        body, store, item.question, item.answer, llm, policy, judge_llm=judge_llm)
+        body, store, item.question, item.answer, llm, policy, judge_llm=judge_llm, story=story)
     tin += atin
     tout += atout
     log.debug(f"q{item.id} [{policy.name}] correct={int(ok)} comp={n_comp} ans={final[:60]!r}")

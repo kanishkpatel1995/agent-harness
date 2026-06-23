@@ -70,6 +70,7 @@ class Config:
     seed: int = 0
     cache_dir: str = "experiments/.cache"
     resume: bool = False
+    story: bool = False   # narrate each cell: question, retrieved chunks, answer, gold, verdict
 
 
 def _latest_run_dir(exp_id):
@@ -126,7 +127,8 @@ def run(cfg):
                 store = EmbedStore() if pol.retrieves else None
                 try:
                     body, n_comp, ctin, ctout = read_and_compact(
-                        conv.sessions, llm, pol, store, budget=cfg.budget, keep_recent=cfg.keep_recent)
+                        conv.sessions, llm, pol, store, budget=cfg.budget,
+                        keep_recent=cfg.keep_recent, story=cfg.story)
                 except Exception as e:  # a bad conversation must not kill the sweep
                     log.error(f"{pname} conv{conv.id} COMPACT FAILED: {type(e).__name__}: {e}")
                     continue
@@ -137,7 +139,8 @@ def run(cfg):
                         continue
                     try:
                         ok, final, rchars, atin, atout = answer_from_window(
-                            body, store, qa["question"], qa["answer"], llm, pol, judge_llm=judge_llm)
+                            body, store, qa["question"], qa["answer"], llm, pol,
+                            judge_llm=judge_llm, story=cfg.story)
                     except Exception as e:
                         log.error(f"{pname} conv{conv.id} q{qi} FAILED: {type(e).__name__}: {e}")
                         continue
@@ -186,9 +189,13 @@ def main():
     ap.add_argument("--budget", type=int, default=None)
     ap.add_argument("--judge", action="store_true", help="grade with the LLM judge, not substring")
     ap.add_argument("--resume", action="store_true", help="resume the latest run dir, skip done cells")
+    ap.add_argument("--story", action="store_true",
+                    help="narrate each cell: question, retrieved chunks, answer, gold, judge verdict")
     a = ap.parse_args()
     setup("DEBUG" if a.v >= 2 else "INFO")
     cfg = Config()
+    if a.story:
+        cfg.story = True
     if a.n_conv:
         cfg.n_conversations = a.n_conv
     if a.q_per_conv:
