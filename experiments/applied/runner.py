@@ -277,15 +277,16 @@ def report(results_path):
     for r in rows:
         g[r["policy"]].append((int(r["correct"]), int(r["tokens_total"]), int(r["n_compactions"])))
     print("\n=== FRAMES accuracy vs cost by policy ===")
-    print(f"{'policy':<18}{'accuracy':>10}{'mean_tokens':>13}{'mean_comp':>11}{'n':>5}")
-    for p in ("truncate", "recency", "importance", "semantic",
-              "externalize", "reversible_hybrid", "subagent"):
-        if p in g:
-            a = g[p]
-            acc = sum(c for c, _, _ in a) / len(a)
-            tok = st.mean(t for _, t, _ in a)
-            comp = st.mean(c for _, _, c in a)
-            print(f"{p:<18}{acc:>10.2f}{tok:>13.0f}{comp:>11.1f}{len(a):>5}")
+    print(f"{'policy':<19}{'accuracy':>10}{'mean_tokens':>13}{'mean_comp':>11}{'n':>5}")
+    known = ("truncate", "recency", "langchain_summary", "importance", "semantic",
+             "externalize", "reversible_hybrid", "subagent")
+    order = [p for p in known if p in g] + [p for p in g if p not in known]
+    for p in order:
+        a = g[p]
+        acc = sum(c for c, _, _ in a) / len(a)
+        tok = st.mean(t for _, t, _ in a)
+        comp = st.mean(c for _, _, c in a)
+        print(f"{p:<19}{acc:>10.2f}{tok:>13.0f}{comp:>11.1f}{len(a):>5}")
 
 
 def main():
