@@ -353,6 +353,10 @@ def main():
         cfg.store = a.store
     if a.story:
         cfg.story = True
+        import logging
+        # --story is its own clean narration; mute the per-call / per-chunk DEBUG spam.
+        for noisy in ("bench.embed", "bench.model"):
+            logging.getLogger(noisy).setLevel(logging.WARNING)
     results_path = run(cfg)
     report(results_path)
 

@@ -196,6 +196,10 @@ def main():
     cfg = Config()
     if a.story:
         cfg.story = True
+        import logging
+        # --story is its own clean narration; mute the per-call / per-chunk DEBUG spam.
+        for noisy in ("bench.embed", "bench.model"):
+            logging.getLogger(noisy).setLevel(logging.WARNING)
     if a.n_conv:
         cfg.n_conversations = a.n_conv
     if a.q_per_conv:

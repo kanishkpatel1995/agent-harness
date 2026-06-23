@@ -60,10 +60,19 @@ def read_and_compact(articles, summarizer, policy, store, *, budget, keep_recent
             if _toks(body) >= before or inner >= 50:
                 break
     if story:
+        peek = " ".join((articles[0] if articles else "").split())[:100]
         stored = len(getattr(store, "texts", [])) if store is not None else 0
-        extra = f"  ->  {_C.B}stored {stored} chunks{_C.E}" if store is not None else ""
-        print(f"\n{_C.P}{_C.B}━━ {policy.name} ━━{_C.E}  read {len(articles)} sources  ->  "
-              f"{n_comp} compactions  ->  window {_toks(body)} tok{extra}")
+        if store is not None:
+            move = f"moved the raw turns to a store ({_C.B}{stored} chunks{_C.E}{_C.D}, searchable)"
+        else:
+            move = "dropped the old turns"
+        bar = "─" * 54
+        print(f"\n{_C.P}{_C.B}┌─ policy: {policy.name} {bar[:42]}{_C.E}")
+        print(f"{_C.P}│{_C.E} {_C.B}DATASET{_C.E}  the agent reads {len(articles)} sources (chat sessions / articles)")
+        print(f"{_C.P}│{_C.E}   {_C.D}peek › {peek}…{_C.E}")
+        print(f"{_C.P}│{_C.E} {_C.B}COMPACT{_C.E}  window crossed the {budget}-tok budget {n_comp}× → {policy.name} {_C.D}{move}{_C.E}")
+        print(f"{_C.P}│{_C.E}   the window the model will actually see: {_C.B}{_toks(body)} tokens{_C.E}")
+        print(f"{_C.P}└{'─' * 52}{_C.E}")
     return body, n_comp, tin, tout
 
 
@@ -95,15 +104,31 @@ def answer_from_window(body, store, question, gold, llm, policy, *, judge_llm=No
         tout += ju.get("completion_tokens", 0)
         ok = bool(jok)
     if story:
-        print(f"  {_C.B}Q{_C.E} \"{(question or '')[:90]}\"")
-        if policy.retrieves and retrieved:
-            print(f"    {_C.D}retrieved (the chunks it pulled back to answer):{_C.E}")
-            for chunk in [c for c in retrieved.split('\n\n') if c.strip()][:3]:
-                print(f"    {_C.D}  › {' '.join(chunk.split())[:96]}{_C.E}")
+        model_name = getattr(llm, "model", "model").split("/")[-1]
+        chunks = [c for c in retrieved.split("\n\n") if c.strip()] if retrieved else []
+        ctx_note = f"the {_toks(body)}-tok compacted window"
+        if policy.retrieves and chunks:
+            ctx_note += f" + {len(chunks)} retrieved chunks"
+        raw_out = " ".join((r.content or "").split())
+        verdict = f"{_C.G}✓ CORRECT{_C.E}" if ok else f"{_C.R}✗ WRONG{_C.E}"
+        grader = "70B judge" if judge_llm is not None else "substring match"
+        print(f"\n  {_C.B}❓ QUESTION{_C.E} (from the dataset)")
+        print(f"     {(question or '')[:110]}")
+        print(f"     {_C.D}↳ gold answer the dataset expects: \"{(gold or '')[:60]}\"{_C.E}")
+        if policy.retrieves and chunks:
+            print(f"  {_C.P}🔎 RETRIEVED{_C.E} {len(chunks)} chunks from the store (this is what 'memory' pulls back):")
+            for c in chunks[:3]:
+                print(f"     {_C.D}› {' '.join(c.split())[:92]}{_C.E}")
         elif policy.retrieves:
-            print(f"    {_C.D}retrieved: (nothing matched in the store){_C.E}")
-        verdict = f"{_C.G}✓ correct{_C.E}" if ok else f"{_C.R}✗ wrong{_C.E}"
-        print(f"    answer: {_C.B}\"{(final or '')[:70]}\"{_C.E}   gold: \"{(gold or '')[:50]}\"   judge: {verdict}")
+            print(f"  {_C.P}🔎 RETRIEVED{_C.E} {_C.D}nothing matched in the store{_C.E}")
+        print(f"  {_C.P}📨 INPUT to {model_name}{_C.E} {_C.D}({r.usage.get('prompt_tokens', 0)} tokens go in):{_C.E}")
+        print(f"     {_C.D}system  │ {ANSWER_SYS[:72]}…{_C.E}")
+        print(f"     {_C.D}context │ [{ctx_note}]{_C.E}")
+        print(f"     {_C.D}question│ {(question or '')[:72]}{_C.E}")
+        print(f"  {_C.P}📥 OUTPUT{_C.E} (what {model_name} actually said, raw):")
+        print(f"     {_C.B}{raw_out[:150]}{_C.E}")
+        print(f"  {_C.P}⚖️  GRADE{_C.E} ({grader}): \"{(final or '')[:42]}\" vs gold \"{(gold or '')[:34]}\"  →  {verdict}")
+        print(f"  {_C.D}💾 SAVED → results.csv:  correct={int(ok)} · retrieved_chars={len(retrieved)} · tokens={tin + tout}{_C.E}")
     return ok, final, len(retrieved), tin, tout
 
 

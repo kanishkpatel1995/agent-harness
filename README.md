@@ -14,24 +14,100 @@ makes all of it visible.
 
 ---
 
-## Quickstart (30 seconds, no API key)
+## Quickstart — run the policy comparison
+
+Everything below runs **offline, with no API key**. Total time: ~2 minutes.
+
+**Prerequisites:** **Python 3.10 or newer** and `git`. Check your version:
+
+```bash
+python3 --version        # must be 3.10+  (on Windows: py --version)
+```
+
+### 1. Clone the repo
 
 ```bash
 git clone https://github.com/kanishkpatel1995/agent-harness
 cd agent-harness
-python run.py "context engineering for long-running agents"
 ```
 
-That runs the **FakeLLM** — a deterministic, offline stand-in for a real model.
-No key, no network. You'll watch the context window grow step by step, cross its
-threshold, and snap back down when compaction fires, while the agent keeps
-working. Then open `run/notes.md` to see the agent's externalized memory.
+### 2. Create and activate a virtual environment
 
-### Run it with a real model
+A virtual environment keeps these packages isolated from your system Python.
+
+**macOS / Linux:**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+**Windows (PowerShell):**
+```powershell
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+Your prompt should now start with `(.venv)`. (Run `deactivate` when you're done.)
+
+### 3. Install dependencies
 
 ```bash
-pip install -r requirements.txt
-cp .env.example .env          # add your key
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+> The offline comparison itself needs **no** dependencies — pure standard library.
+> This step adds `pytest` (for the tests) and `litellm` (for running a real model
+> later). To bench the open-source memory systems too, also run
+> `python -m pip install -r requirements-adapters.txt`.
+
+### 4. Run the comparison (the headline demo)
+
+```bash
+python -m harness.compare "quantum networking startups"
+```
+
+This runs **one question through all seven compaction policies** and prints a
+side-by-side table — how many LLM calls each costs, the resulting window size,
+whether it retrieves, and **whether a planted fact survives**:
+
+```
+  policy             architecture  llm  ctx tok  retr  fact?
+  ------------------------------------------------------------
+  truncate           truncate        0       47     -   ✗ lost
+  recency            compact         1       70     -   ✗ lost
+  importance         compact         1      138     -   ✓ kept
+  semantic           compact         2       98     -   ✗ lost
+  externalize        externalize     0       56   yes   ✓ kept
+  subagent           isolate         6      225     -   ✗ lost
+  reversible_hybrid  hybrid          1       74   yes   ✓ kept
+```
+
+See it explained two more ways:
+
+```bash
+python -m harness.compare "quantum networking startups" --verbose   # show what each policy KEPT in the window
+python -m harness.compare "quantum networking startups" --story     # step-by-step: what each policy DECIDES, keeps, retrieves, and costs
+```
+
+`--story` walks one policy at a time — what it decides, what's left in the
+window, what it retrieves at answer time, the cost, and whether the fact
+survived — which is the clearest way to understand what each one is doing.
+
+### 5. (Optional) Run the tests and watch one agent compact
+
+```bash
+python -m pytest -q                  # 11 offline tests
+python run.py "context engineering for long-running agents"   # watch compaction live
+cat run/notes.md                     # the agent's externalized memory
+```
+
+---
+
+## Run it with a real model
+
+```bash
+cp .env.example .env          # add your API key
 python run.py --real --model gpt-4o-mini "your topic here"
 ```
 
@@ -45,6 +121,87 @@ Any litellm-supported model works — swap the `--model`:
 | Local (Ollama) | `ollama/llama3.1` |
 
 For real web search/fetch instead of offline fixtures: `HARNESS_OFFLINE=0`.
+
+---
+
+## Run the policies on a real dataset (FRAMES & LoCoMo)
+
+The offline `compare` above shows the *mechanism* on a planted fact. To watch the
+policies run on **real benchmark questions** with a real model and an LLM judge,
+use the applied bench. These need a key in `.env` (the runs in `experiments/runs/`
+used the free NVIDIA NIM tier — set `NVIDIA_FREE_API_KEY`) and are **much slower**
+than the offline demos — real model calls, seconds-to-minutes per question.
+
+Add **`--story`** to any command below for a narrated play-by-play (recommended): per
+question it shows the dataset, the compaction, the chunks retrieved, the **exact input**
+the model sees, the **raw output** it returns, the judge's grade, and what gets saved.
+(`-vv` instead gives the raw firehose: every model call and chunk store, no narration.)
+
+**FRAMES — multi-hop factual QA** (one question, the key policies, LLM-judged):
+
+```bash
+python -m experiments.applied --n 1 \
+  --policies truncate,recency,externalize,reversible_hybrid \
+  --budget 1500 --chunk-chars 1500 --judge --story
+```
+
+**LoCoMo — conversational memory:**
+
+```bash
+python -m experiments.applied.locomo_runner --n-conv 1 --q-per-conv 3 \
+  --policies truncate,externalize,reversible_hybrid \
+  --budget 1500 --judge --story
+```
+
+### See exactly what happens — `--story`
+
+`--story` narrates each *(policy, question)* cell so you can follow the data end to end.
+One real cell from the LoCoMo command above (the `externalize` policy):
+
+```
+┌─ policy: externalize ──────────────────────────────────────────
+│ DATASET  the agent reads 19 sources (chat sessions / articles)
+│   peek › Caroline: Hey Mel! Good to see you! How have you been? ...
+│ COMPACT  window crossed the 1500-tok budget 17× → externalize moved the raw
+│          turns to a store (90 chunks, searchable)
+│   the window the model will actually see: 1504 tokens
+└────────────────────────────────────────────────────
+
+  ❓ QUESTION (from the dataset)
+     Did Melanie make the black and white bowl in the photo?
+     ↳ gold answer the dataset expects: "Yes"
+  🔎 RETRIEVED 3 chunks from the store (this is what 'memory' pulls back):
+     › ...Yeah, I made this bowl in my class. It took some work, but I'm proud ...
+     › Caroline: Hey Melanie! Long time no talk! A lot's been going on ...
+  📨 INPUT to llama-3.1-8b-instruct (2199 tokens go in):
+     system  │ You are answering a research question using ONLY the provided ...
+     context │ [the 1504-tok compacted window + 3 retrieved chunks]
+     question│ Did Melanie make the black and white bowl in the photo?
+  📥 OUTPUT (what llama-3.1-8b-instruct actually said, raw):
+     No, Melanie did not make the black and white bowl in the photo. Caroline ...
+  ⚖️  GRADE (70B judge): "No, Melanie did not make ..." vs gold "Yes"  →  ✗ WRONG
+  💾 SAVED → results.csv:  correct=0 · retrieved_chars=3426 · tokens=2396
+```
+
+Read top to bottom, that *is* the experiment: **what's in the dataset → what the policy
+did to the window → what it retrieved → what the model saw → what it said → how it was
+graded → what was recorded.** You can even see *why* it was wrong here — retrieval pulled
+chunks about a bowl, but not the one that settles the question. Every value is also saved
+verbatim to the run's `prompts.jsonl` (every prompt + response) and `results.csv` (one
+row per cell), so nothing on screen is lost.
+
+**The memory-system bake-off** (swap only the store — hand-rolled NIM vs Mem0 vs
+Chroma; needs `pip install -r requirements-adapters.txt`):
+
+```bash
+python -m experiments.applied --policies externalize --store nim \
+  --judge --n 20 --budget 1500 --chunk-chars 1500       # then --store chroma, --store mem0
+# or all three at once:
+python experiments/applied/launch_exp006_memory.py
+```
+
+Each run writes a folder under `experiments/runs/EXP-NNN__…/` with a `manifest.yaml`
+and a `README.md` holding the result and the strongest threat to validity.
 
 ---
 
