@@ -84,14 +84,25 @@ For real web search/fetch instead of offline fixtures: `HARNESS_OFFLINE=0`.
    purpose.
 2. **`harness/context.py`** — the ContextManager. Pinning, token counting,
    truncation, and compaction. This is the heart.
-3. **`harness/memory.py`** — the Scratchpad. Memory that lives outside the window.
-4. **`harness/budget.py`** — steps/tokens/dollars caps. The kill switch.
-5. **`harness/tools.py`** + **`tools/web.py`** — what the agent can do.
-6. **`harness/trace.py`** — how the demo becomes visible.
-7. **`harness/llm.py`** / **`harness/fake_llm.py`** — the provider-agnostic
+3. **`harness/policies/`** — the seven ways to forget, one file each, behind one
+   `Policy` contract (`base.py`). Open them side by side; the trade-offs fall out
+   of the diffs. `adapters/` wraps LangChain / Mem0 / Letta / Chroma behind the
+   same interface.
+4. **`harness/memory.py`** — the Scratchpad. Memory that lives outside the window.
+5. **`harness/budget.py`** — steps/tokens/dollars caps. The kill switch.
+6. **`harness/tools.py`** + **`tools/web.py`** — what the agent can do.
+7. **`harness/trace.py`** — how the demo becomes visible.
+8. **`harness/llm.py`** / **`harness/fake_llm.py`** — the provider-agnostic
    client and its deterministic offline twin.
 
-For a deeper module-by-module walkthrough, see [`docs/architecture.md`](docs/architecture.md).
+See the policies forget differently in one command (offline, no key):
+
+```bash
+python -m harness.compare "quantum networking startups"   # --verbose to show what each kept
+```
+
+For a deeper module-by-module walkthrough, see [`docs/architecture.md`](docs/architecture.md);
+for the guided first session, [`docs/WALKTHROUGH.md`](docs/WALKTHROUGH.md).
 
 ---
 
@@ -101,9 +112,16 @@ For a deeper module-by-module walkthrough, see [`docs/architecture.md`](docs/arc
 |------|--------------|------|
 | **Pin** | Goal + system prompt are never dropped | `context.py` |
 | **Truncate** | Oversized tool outputs are capped before entering the window | `context.py` |
-| **Compact** | The stale middle is summarized and the raw turns dropped | `context.py` |
-| **Externalize** | Findings live in a file, not the window | `memory.py` |
+| **Compact** | The stale middle is summarized and the raw turns dropped | `context.py` + `policies/` |
+| **Externalize** | Findings live in a file or store, not the window | `memory.py` + `policies/store.py` |
 | **Cap** | Steps, tokens, and dollars are hard-limited | `budget.py` |
+
+*Compaction is not one move but a design space.* The seven policies in
+[`harness/policies/`](harness/policies/) (truncate, recency, importance, semantic,
+externalize, sub-agent, reversible hybrid) are seven answers to "what replaces the
+old turns?", behind one interface. The map, the trade-off table, and where the OSS
+memory systems land are in [`docs/POLICIES.md`](docs/POLICIES.md) and
+[`docs/ARCHITECTURES.md`](docs/ARCHITECTURES.md).
 
 ---
 
@@ -155,6 +173,11 @@ agent-harness/
 ├── harness/                THE TEACHING HARNESS (read this first)
 │   ├── loop.py             the agent loop (read first)
 │   ├── context.py          ContextManager — pinning, compaction (the heart)
+│   ├── policies/           the 7 forgetting policies, one file each, + base.py
+│   │   ├── base.py         the Policy contract every arm implements
+│   │   ├── store.py        the offline retrieval store (externalize/hybrid)
+│   │   └── adapters/       LangChain / Mem0 / Letta / Chroma behind that interface
+│   ├── compare.py          `python -m harness.compare` — 7 policies side by side
 │   ├── agent.py            assembles the deep-research agent from the parts
 │   ├── memory.py           Scratchpad — external memory
 │   ├── budget.py           steps/tokens/$ caps
@@ -171,10 +194,14 @@ agent-harness/
 │   └── runs/               one folder per run: manifest + prompts + results + figures
 ├── presentation/           the talk: build_deck.js, build_talk_deck.js, brand, figures
 ├── docs/
+│   ├── WALKTHROUGH.md      guided offline first session (test → run → compare → bench)
+│   ├── POLICIES.md         the 7 policies: decision · trade-off · result
+│   ├── ARCHITECTURES.md    the architecture map + where the OSS systems land
 │   ├── architecture.md     deeper module walkthrough
 │   ├── demo-script.md      what to type and say on stage
 │   ├── references.md       where to go to learn more
 │   └── research-track/     protocol · curriculum · paper draft · literature
+├── requirements-adapters.txt   optional deps for the OSS adapters
 ├── DECISIONS.md            every design call, and every one we changed
 └── tests/
 ```
@@ -185,8 +212,10 @@ agent-harness/
 
 The **harness** is a teaching artifact: no retries-with-backoff, no parallel tool calls. You can
 read the whole thing in 20 minutes and understand exactly how a long-running agent keeps its head
-straight. The **research track** (`experiments/`) is where the heavier machinery lives, a vector
-store and a full eval/bake-off, kept deliberately separate so the teaching core stays minimal.
-See `docs/architecture.md` for how the pieces fit.
+straight. Its core stays dependency-free: the retrieval store in `policies/store.py` is a tiny
+offline keyword matcher, and the real vector stores and OSS memory systems (Chroma, Mem0, Letta,
+LangChain) are **import-guarded adapters** you opt into with `requirements-adapters.txt`. The
+**research track** (`experiments/`) is the full eval/bake-off that scores these policies on real
+tasks. See `docs/architecture.md` for how the pieces fit.
 
 MIT licensed. Built for Learn Agentic AI — https://learnagentic.substack.com
