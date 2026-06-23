@@ -78,6 +78,7 @@ class Config:
     # The agent and judge are unchanged; only the memory backend differs (EXP-006).
     store: str = "nim"
     story: bool = False   # narrate each cell: question, retrieved chunks, answer, gold, verdict
+    question_ids: tuple = ()   # if set, run exactly these FRAMES question ids (overrides --n sampling)
 
 
 RUNS_DIR = Path("experiments/runs")
@@ -232,6 +233,9 @@ def run(cfg):
                 chunks.append(a)
         it.articles = chunks
     items = [it for it in items if it.articles]
+    if cfg.question_ids:   # feature specific question(s) on stage
+        want = {str(q) for q in cfg.question_ids}
+        items = [it for it in items if str(it.id) in want]
     log.info(f"{len(items)} questions have fetchable articles")
 
     # Retrieval backend factory for the retrieving policies (EXP-006: NIM vs Chroma).
@@ -322,6 +326,8 @@ def main():
                     help="retrieval backend for retrieving policies: nim (nv-embedqa), chroma (MiniLM), mem0 (deduped facts)")
     ap.add_argument("--story", action="store_true",
                     help="narrate each cell: question, retrieved chunks, answer, gold, judge verdict")
+    ap.add_argument("--question", default=None,
+                    help="feature specific FRAMES question id(s), comma-separated (overrides --n)")
     a = ap.parse_args()
     setup("DEBUG" if a.v >= 2 else "INFO")
     cfg = PRESETS[a.preset] if a.preset in PRESETS else Config()
@@ -357,6 +363,8 @@ def main():
         # --story is its own clean narration; mute the per-call / per-chunk DEBUG spam.
         for noisy in ("bench.embed", "bench.model"):
             logging.getLogger(noisy).setLevel(logging.WARNING)
+    if a.question:
+        cfg.question_ids = tuple(a.question.split(","))
     results_path = run(cfg)
     report(results_path)
 

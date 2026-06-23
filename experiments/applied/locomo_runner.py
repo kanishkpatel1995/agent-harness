@@ -71,6 +71,7 @@ class Config:
     cache_dir: str = "experiments/.cache"
     resume: bool = False
     story: bool = False   # narrate each cell: question, retrieved chunks, answer, gold, verdict
+    question_ids: tuple = ()   # if set, answer exactly these qa indices (overrides --q-per-conv sampling)
 
 
 def _latest_run_dir(exp_id):
@@ -121,6 +122,8 @@ def run(cfg):
             corr = total = 0
             for conv in convs:
                 qs = _sample_questions(conv, cfg.q_per_conv, cfg.seed)
+                if cfg.question_ids:   # feature specific question(s) on stage
+                    qs = [(i, conv.qa[i]) for i in cfg.question_ids if 0 <= i < len(conv.qa)]
                 if all((pname, conv.id, str(qi)) in done for qi, _ in qs):
                     continue
                 # Compact this conversation ONCE; the same window answers every question.
@@ -191,6 +194,8 @@ def main():
     ap.add_argument("--resume", action="store_true", help="resume the latest run dir, skip done cells")
     ap.add_argument("--story", action="store_true",
                     help="narrate each cell: question, retrieved chunks, answer, gold, judge verdict")
+    ap.add_argument("--question", default=None,
+                    help="feature specific question id(s), comma-separated (overrides --q-per-conv sampling)")
     a = ap.parse_args()
     setup("DEBUG" if a.v >= 2 else "INFO")
     cfg = Config()
@@ -214,6 +219,8 @@ def main():
         cfg.use_judge = True
     if a.resume:
         cfg.resume = True
+    if a.question:
+        cfg.question_ids = tuple(int(x) for x in a.question.split(","))
     results_path = run(cfg)
     report(results_path)
 

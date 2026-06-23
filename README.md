@@ -190,6 +190,19 @@ chunks about a bowl, but not the one that settles the question. Every value is a
 verbatim to the run's `prompts.jsonl` (every prompt + response) and `results.csv` (one
 row per cell), so nothing on screen is lost.
 
+**Feature one question** with `--question <id>` (comma-separated for a few) instead of a
+random sample. Question **72** of the first LoCoMo conversation is a clean "memory wins":
+
+```bash
+python -m experiments.applied.locomo_runner --n-conv 1 --question 72 \
+  --policies truncate,externalize,reversible_hybrid --budget 1500 --judge --story
+```
+
+*"When did Melanie's friend adopt a child?"* (gold: 2022). `truncate` dropped the early
+sessions and answers **"Last Friday"** (it kept only the recent interview) → wrong.
+`externalize` and `reversible_hybrid` retrieve the early chunks and answer **"Last year"**
+→ right. Same model, same question; the only difference is what each policy chose to forget.
+
 **The memory-system bake-off** (swap only the store — hand-rolled NIM vs Mem0 vs
 Chroma; needs `pip install -r requirements-adapters.txt`):
 
