@@ -83,7 +83,9 @@ RUNS_DIR = Path("experiments/runs")
 
 
 def _latest_run_dir(exp_id):
-    dirs = sorted(RUNS_DIR.glob(f"{exp_id}__*"))
+    # Sort by the trailing YYYYMMDD-HHMM stamp, not the slug, so the most RECENT run
+    # wins even when one exp_id has several slugs (e.g. EXP-006 nim/chroma/mem0).
+    dirs = sorted(RUNS_DIR.glob(f"{exp_id}__*"), key=lambda p: p.name.rsplit("__", 1)[-1])
     return dirs[-1] if dirs else None
 
 
