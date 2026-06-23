@@ -6,5 +6,9 @@ python-dotenv>=1.0.0
 requests>=2.31.0
 beautifulsoup4>=4.12.0
 
+# Applied bench on real datasets (experiments/applied): FRAMES loads via HuggingFace
+# datasets; LoCoMo reads a local JSON. Not needed for the offline `harness.compare` demo.
+datasets>=2.18.0
+
 # Dev
 pytest>=8.0.0
