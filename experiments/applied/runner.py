@@ -236,7 +236,7 @@ def run(cfg):
             from experiments.applied.chroma_backend import ChromaBackend
             return ChromaBackend()
         return EmbedStore()
-    if any(POLICIES[p].retrieves for p in cfg.policies):
+    if any(p in POLICIES and POLICIES[p].retrieves for p in cfg.policies):
         log.info(f"retrieval backend: {cfg.store}")
 
     write_header = (not results_path.exists()) or results_path.stat().st_size == 0
