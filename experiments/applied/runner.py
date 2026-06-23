@@ -71,6 +71,11 @@ class Config:
     # Run compaction summaries on this (fast) model instead of the agent model. The agent
     # still answers. Used for the reasoning tier (verbose CoT makes self-summarizing slow).
     summarizer: str = ""
+    # Retrieval backend for the externalize/hybrid (retrieving) policies:
+    #   "nim"    -> EmbedStore: NVIDIA nv-embedqa-e5-v5 (1024-d, asymmetric query/passage, API)
+    #   "chroma" -> ChromaBackend: Chroma + all-MiniLM-L6-v2 (384-d, local onnxruntime, no key)
+    # The agent and judge are unchanged; only the memory backend differs (EXP-006).
+    store: str = "nim"
 
 
 RUNS_DIR = Path("experiments/runs")
@@ -216,6 +221,15 @@ def run(cfg):
     items = [it for it in items if it.articles]
     log.info(f"{len(items)} questions have fetchable articles")
 
+    # Retrieval backend factory for the retrieving policies (EXP-006: NIM vs Chroma).
+    def make_store():
+        if cfg.store == "chroma":
+            from experiments.applied.chroma_backend import ChromaBackend
+            return ChromaBackend()
+        return EmbedStore()
+    if any(POLICIES[p].retrieves for p in cfg.policies):
+        log.info(f"retrieval backend: {cfg.store}")
+
     write_header = (not results_path.exists()) or results_path.stat().st_size == 0
     with results_path.open("a", newline="") as f:
         w = csv.DictWriter(f, fieldnames=FIELDS)
@@ -227,7 +241,7 @@ def run(cfg):
             for it in items:
                 if (pname, it.id) in done:
                     continue
-                store = EmbedStore() if pol.retrieves else None
+                store = make_store() if pol.retrieves else None
                 try:
                     row = answer_question(it, it.articles, llm, pol, store,
                                           budget=cfg.budget, keep_recent=cfg.keep_recent,
@@ -251,7 +265,7 @@ def report(results_path):
     g = collections.defaultdict(list)
     for r in rows:
         g[r["policy"]].append((int(r["correct"]), int(r["tokens_total"]), int(r["n_compactions"])))
-    print("\n=== EXP-003a: FRAMES accuracy vs cost by policy ===")
+    print("\n=== FRAMES accuracy vs cost by policy ===")
     print(f"{'policy':<18}{'accuracy':>10}{'mean_tokens':>13}{'mean_comp':>11}{'n':>5}")
     for p in ("truncate", "recency", "importance", "semantic",
               "externalize", "reversible_hybrid", "subagent"):
@@ -284,6 +298,8 @@ def main():
                     help="reasoning models: keep compaction summaries concise (thinking off)")
     ap.add_argument("--summarizer", default=None,
                     help="run compaction summaries on this fast model; agent still answers")
+    ap.add_argument("--store", default=None, choices=["nim", "chroma"],
+                    help="retrieval backend for retrieving policies: nim (nv-embedqa) or chroma (MiniLM)")
     a = ap.parse_args()
     setup("DEBUG" if a.v >= 2 else "INFO")
     cfg = PRESETS[a.preset] if a.preset in PRESETS else Config()
@@ -311,6 +327,8 @@ def main():
         cfg.think_off_summarize = True
     if a.summarizer:
         cfg.summarizer = a.summarizer
+    if a.store:
+        cfg.store = a.store
     results_path = run(cfg)
     report(results_path)
 
