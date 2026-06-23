@@ -1,0 +1,42 @@
+exp_id: EXP-005
+slug: frames-truncate-baseline
+created_utc: 20260623-1904
+git_sha: 1ebe18c
+python: 3.9.12
+deps:
+  litellm: 1.83.9
+  matplotlib: 3.7.1
+  requests: 2.32.4
+  python-dotenv: 1.0.1
+hypothesis: "Truncation (keep the recent turns, drop the rest, no LLM call) sets the accuracy floor on FRAMES multi-hop QA under high compaction pressure: it is the cheapest policy and the baseline every summary/retrieval arm must beat."
+assumptions:
+  - Oracle retrieval (gold Wikipedia articles) isolates compaction from search quality.
+  - Chunked reads at budget 1500 force many compaction events per question.
+  - The 70b LLM judge credits paraphrased-correct answers; substring is biased toward verbatim.
+  - n=30 at one seed is a dev-scale point estimate; the 95% CI is wide (cf. experiments/stats.py).
+config:
+  exp_id: EXP-005
+  slug: frames-truncate-baseline
+  hypothesis: "Truncation (keep the recent turns, drop the rest, no LLM call) sets the accuracy floor on FRAMES multi-hop QA under high compaction pressure: it is the cheapest policy and the baseline every summary/retrieval arm must beat."
+  assumptions:
+    - Oracle retrieval (gold Wikipedia articles) isolates compaction from search quality.
+    - Chunked reads at budget 1500 force many compaction events per question.
+    - The 70b LLM judge credits paraphrased-correct answers; substring is biased toward verbatim.
+    - n=30 at one seed is a dev-scale point estimate; the 95% CI is wide (cf. experiments/stats.py).
+  model: meta/llama-3.1-8b-instruct
+  use_judge: true
+  judge_model: meta/llama-3.3-70b-instruct
+  policies:
+    - truncate
+  n_questions: 30
+  max_articles: 6
+  budget: 1500
+  chunk_chars: 1500
+  keep_recent: 4
+  seed: 7
+  cache_dir: experiments/.cache
+  resume: false
+  api_base: 
+  agent_timeout: 0
+  think_off_summarize: false
+  summarizer: 
