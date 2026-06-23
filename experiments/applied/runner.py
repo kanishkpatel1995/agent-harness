@@ -93,6 +93,15 @@ def _done_cells(results_path):
         return {(r["policy"], r["qid"]) for r in csv.DictReader(f)}
 
 
+def _get_policy(pname):
+    """Built-in policies are singletons in POLICIES; the optional OSS-adapter arms
+    (e.g. LangChain) are constructed on demand so the core stays dependency-free."""
+    if pname == "langchain_summary":
+        from experiments.applied.langchain_backend import LangChainSummaryPolicy
+        return LangChainSummaryPolicy()
+    return POLICIES[pname]
+
+
 # EXP-003b: high compaction pressure (small budget, articles read in chunks so
 # compaction fires many times per question), all seven arms, LLM judge. The regime
 # where policy should matter, unlike the low-pressure EXP-003a where they tied.
@@ -236,11 +245,13 @@ def run(cfg):
         if write_header:
             w.writeheader()
         for pname in cfg.policies:
-            pol = POLICIES[pname]
+            pol = _get_policy(pname)
             corr = total = 0
             for it in items:
                 if (pname, it.id) in done:
                     continue
+                if hasattr(pol, "reset"):
+                    pol.reset()   # stateful arms (LangChain buffer) must not bleed across questions
                 store = make_store() if pol.retrieves else None
                 try:
                     row = answer_question(it, it.articles, llm, pol, store,
