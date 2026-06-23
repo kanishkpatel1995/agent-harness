@@ -1,0 +1,43 @@
+exp_id: EXP-006
+slug: frames-memory-nim
+created_utc: 20260623-2007
+git_sha: b3c4df1
+python: 3.9.12
+deps:
+  litellm: 1.83.9
+  matplotlib: 3.7.1
+  requests: 2.32.5
+  python-dotenv: 1.0.1
+hypothesis: "On FRAMES, the memory system matters under a fixed externalize policy: a retrieval-tuned embedder (NIM nv-embedqa-e5-v5) beats a general local encoder (Chroma/MiniLM), and Mem0's extract-then-dedupe-facts strategy trades raw recall for a smaller, cleaner memory at a higher per-add LLM cost. The agent and judge are held constant."
+assumptions:
+  - Oracle articles + the externalize policy isolate the memory backend as the variable.
+  - nim and mem0 share the nv-embedqa embedder, so mem0's delta is its extract-then-dedupe, not the embedder.
+  - Chroma uses cosine space to match the NIM store's cosine ranking.
+  - The 70b judge and the 8b agent are identical across all backends.
+config:
+  exp_id: EXP-006
+  slug: frames-memory-nim
+  hypothesis: "On FRAMES, the memory system matters under a fixed externalize policy: a retrieval-tuned embedder (NIM nv-embedqa-e5-v5) beats a general local encoder (Chroma/MiniLM), and Mem0's extract-then-dedupe-facts strategy trades raw recall for a smaller, cleaner memory at a higher per-add LLM cost. The agent and judge are held constant."
+  assumptions:
+    - Oracle articles + the externalize policy isolate the memory backend as the variable.
+    - nim and mem0 share the nv-embedqa embedder, so mem0's delta is its extract-then-dedupe, not the embedder.
+    - Chroma uses cosine space to match the NIM store's cosine ranking.
+    - The 70b judge and the 8b agent are identical across all backends.
+  model: meta/llama-3.1-8b-instruct
+  use_judge: true
+  judge_model: meta/llama-3.3-70b-instruct
+  policies:
+    - externalize
+  n_questions: 20
+  max_articles: 6
+  budget: 1500
+  chunk_chars: 1500
+  keep_recent: 4
+  seed: 7
+  cache_dir: experiments/.cache
+  resume: false
+  api_base: 
+  agent_timeout: 0
+  think_off_summarize: false
+  summarizer: 
+  store: nim
