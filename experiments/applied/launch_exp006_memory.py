@@ -29,7 +29,12 @@ from experiments.bench.logsetup import setup, get  # noqa: E402
 
 log = get("exp006")
 
-BACKENDS = [("nim", "frames-memory-nim"), ("chroma", "frames-memory-chroma")]
+BACKENDS = [("nim", "frames-memory-nim"), ("chroma", "frames-memory-chroma"),
+            ("mem0", "frames-memory-mem0")]
+
+LABELS = {"nim": "nv-embedqa-e5-v5 (API, 1024-d)",
+          "chroma": "MiniLM (local ONNX, 384-d)",
+          "mem0": "Mem0 deduped facts (nv-embedqa)"}
 
 
 def _cfg(store: str, slug: str) -> Config:
@@ -37,16 +42,16 @@ def _cfg(store: str, slug: str) -> Config:
         exp_id="EXP-006",
         slug=slug,
         hypothesis=(
-            "On FRAMES, the retrieval-tuned NIM embedder (nv-embedqa-e5-v5) recovers more "
-            "answer-bearing chunks than a general-purpose local encoder (Chroma/MiniLM), so "
-            "the externalize policy scores higher accuracy with the NIM store; the gap "
-            "quantifies how much the embedding model matters for agent memory."
+            "On FRAMES, the memory system matters under a fixed externalize policy: a retrieval-"
+            "tuned embedder (NIM nv-embedqa-e5-v5) beats a general local encoder (Chroma/MiniLM), "
+            "and Mem0's extract-then-dedupe-facts strategy trades raw recall for a smaller, cleaner "
+            "memory at a higher per-add LLM cost. The agent and judge are held constant."
         ),
         assumptions=(
-            "Oracle articles + the externalize policy isolate the store backend as the only variable.",
-            "Chunking is held at 1200 chars for both backends, so granularity is not a confound.",
+            "Oracle articles + the externalize policy isolate the memory backend as the variable.",
+            "nim and mem0 share the nv-embedqa embedder, so mem0's delta is its extract-then-dedupe, not the embedder.",
             "Chroma uses cosine space to match the NIM store's cosine ranking.",
-            "The 70b judge and the 8b agent are identical across both backends.",
+            "The 70b judge and the 8b agent are identical across all backends.",
         ),
         model="meta/llama-3.1-8b-instruct",
         use_judge=True,
@@ -77,9 +82,8 @@ if __name__ == "__main__":
     for store, slug in BACKENDS:
         log.info(f"=== EXP-006 backend: {store} ===")
         out[store] = _summary(run(_cfg(store, slug)))
-    print("\n=== EXP-006: FRAMES externalize — retrieval-backend head-to-head ===")
-    print(f"{'backend':<8}{'accuracy':>10}{'mean_tokens':>13}{'retr_chars':>12}{'n':>5}   embedder")
+    print("\n=== EXP-006: FRAMES externalize — memory-system head-to-head ===")
+    print(f"{'backend':<8}{'accuracy':>10}{'mean_tokens':>13}{'retr_chars':>12}{'n':>5}   memory system")
     for store, _ in BACKENDS:
         acc, tok, rch, n = out[store]
-        label = "nv-embedqa-e5-v5 (API, 1024-d)" if store == "nim" else "MiniLM (local ONNX, 384-d)"
-        print(f"{store:<8}{acc:>10.2f}{tok:>13.0f}{rch:>12.0f}{n:>5}   {label}")
+        print(f"{store:<8}{acc:>10.2f}{tok:>13.0f}{rch:>12.0f}{n:>5}   {LABELS[store]}")

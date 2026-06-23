@@ -74,6 +74,7 @@ class Config:
     # Retrieval backend for the externalize/hybrid (retrieving) policies:
     #   "nim"    -> EmbedStore: NVIDIA nv-embedqa-e5-v5 (1024-d, asymmetric query/passage, API)
     #   "chroma" -> ChromaBackend: Chroma + all-MiniLM-L6-v2 (384-d, local onnxruntime, no key)
+    #   "mem0"   -> Mem0Backend: extract-then-dedupe facts (LLM) + nv-embedqa, chroma vector db
     # The agent and judge are unchanged; only the memory backend differs (EXP-006).
     store: str = "nim"
 
@@ -235,6 +236,9 @@ def run(cfg):
         if cfg.store == "chroma":
             from experiments.applied.chroma_backend import ChromaBackend
             return ChromaBackend()
+        if cfg.store == "mem0":
+            from experiments.applied.mem0_backend import Mem0Backend
+            return Mem0Backend()
         return EmbedStore()
     if any(p in POLICIES and POLICIES[p].retrieves for p in cfg.policies):
         log.info(f"retrieval backend: {cfg.store}")
@@ -310,8 +314,8 @@ def main():
                     help="reasoning models: keep compaction summaries concise (thinking off)")
     ap.add_argument("--summarizer", default=None,
                     help="run compaction summaries on this fast model; agent still answers")
-    ap.add_argument("--store", default=None, choices=["nim", "chroma"],
-                    help="retrieval backend for retrieving policies: nim (nv-embedqa) or chroma (MiniLM)")
+    ap.add_argument("--store", default=None, choices=["nim", "chroma", "mem0"],
+                    help="retrieval backend for retrieving policies: nim (nv-embedqa), chroma (MiniLM), mem0 (deduped facts)")
     a = ap.parse_args()
     setup("DEBUG" if a.v >= 2 else "INFO")
     cfg = PRESETS[a.preset] if a.preset in PRESETS else Config()
