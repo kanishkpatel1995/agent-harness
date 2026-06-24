@@ -1,9 +1,11 @@
 # Which Way to Forget? A Compaction-Policy Bake-Off for Long-Running LLM Agents
 
-*Full paper draft, v0.1. Measurement/benchmark framing for ARR / ICLR. All numbers are
-LLM-judged unless noted. Figures live in `presentation/figures/`. Constraints for this
-document: plain prose readable by practitioners and researchers, honest reporting including
-negative results, no em-dashes.*
+*Full paper draft, v0.2 (post deep-research reframe, 2026-06-24). Repositioned from "first
+head-to-head" to the compaction-POLICY axis, orthogonal to the memory-SYSTEM benchmarks
+(MemoryAgentBench, LongMemEval); FRAMES headline now significant at the n=200 scale-up; judge-
+defense plan made explicit. Measurement/benchmark framing for ICLR 2027 (arXiv first). All
+numbers LLM-judged unless noted. Figures in `presentation/figures/`. Constraints: plain prose
+for practitioners and researchers, honest reporting including negative results, no em-dashes.*
 
 **Authors.** Kanishk Patel (Founsi AI). *[co-authors / affiliations TBD]*
 
@@ -14,12 +16,13 @@ negative results, no em-dashes.*
 A long-running language-model agent fails not when its reasoning is wrong but when its
 context window fills up. The standard fix is compaction: when the transcript exceeds a token
 budget, replace the stale middle with a summary and drop the raw turns. Every major agent
-framework does this, yet the *policy* by which an agent forgets, summarize-the-middle versus
-keep-the-important-turns versus page-to-a-store, is essentially unmeasured against its
-alternatives on evolving agent transcripts. We build a minimal, reproducible harness and run
-a bake-off of seven compaction policies across two task domains (multi-hop factual QA and
-long conversational memory) and three model sizes (8B, 70B, and a reasoning model), scoring
-answer accuracy per token with a held-constant LLM judge. We report four results that are, to
+framework does this. Recent benchmarks compare whole memory *systems*, but the *policy* by
+which an agent forgets, summarize-the-middle versus keep-the-important-turns versus
+page-to-a-store, has not been isolated and measured under a fixed token budget with the agent
+and store held constant. We build a minimal, reproducible harness and run a bake-off of seven
+compaction policies across two task domains (multi-hop factual QA and long conversational
+memory) and three model sizes (8B, 70B, and a reasoning model), scoring answer accuracy per
+token with a held-constant LLM judge. We report four results that are, to
 our knowledge, new. First, the metric choice can invert the ranking: a naive substring match
 makes the best policy look worst, because most policies paraphrase. Second, the policy that
 ships in real agents, recency summarization, is Pareto-dominated by plain truncation under
@@ -46,11 +49,13 @@ the hard context limit and dies.
 The community agrees on the cure in the abstract. Anthropic names the moves (compaction,
 structured note-taking, "context rot"); Cognition calls context engineering the number-one
 job; LangChain and LlamaIndex ship summary-buffer and vector memories; MemGPT and Letta treat
-the window like RAM and page facts to a store. What the community has *not* done is measure
-which way of forgetting is best. Prior work compresses a static prompt or a set of retrieved
-passages, usually to cut latency. The policy that actually runs inside agents, summarize the
-stale middle of an evolving transcript and drop the raw turns, is applied by every framework
-and benchmarked against its alternatives by almost none.
+the window like RAM and page facts to a store. Recent benchmarks (MemoryAgentBench, LongMemEval)
+compare whole memory *systems* head-to-head on a competency axis. What is still missing is the
+controlled variable underneath those systems: the compaction *policy* itself, isolated under a
+fixed token budget with the agent and store held constant. Prior compression work shrinks a
+static prompt or a set of retrieved passages, usually to cut latency. The single policy that
+runs inside agents, summarize the stale middle of an evolving transcript and drop the raw turns,
+is shipped by every framework and isolated as a controlled variable by almost none.
 
 We ask a single question: under a fixed token budget, which compaction policy preserves the
 most answer accuracy per token, and does the answer depend on the task or the model? To
@@ -91,10 +96,28 @@ facts to an external store and retrieve them on demand, treating the window like
 systems propose mechanisms; we measure which mechanism wins on which task, and we include a
 retrieval-only and a summary-plus-retrieval policy as arms.
 
-**Agent context compression.** ACON (2510.00615) compresses agent context. Production
-frameworks (LangChain, LlamaIndex) ship summary-buffer memories. None, to our knowledge,
-report a controlled head-to-head of policies on the same evolving transcript under a fixed
-budget with a paraphrase-aware metric.
+**Agent-memory benchmarks (the closest prior work).** A wave of 2025-2026 benchmarks evaluates
+memory *systems* head-to-head. MemoryAgentBench (2507.05257, ICLR 2026) scores Mem0, MemGPT,
+Cognee, Zep, HippoRAG-v2 and others across four competencies (accurate retrieval, test-time
+learning, long-range understanding, selective forgetting) and reports that no single system
+masters all four. LongMemEval-V2 (2605.12493) evaluates retrieval and coding-agent memory over
+long agentic trajectories, and a growing set (MemoryArena 2602.16313, AMA-Bench 2602.22769,
+Mem2ActBench 2601.19935) follows. These benchmark *systems* on a competency axis. We are
+orthogonal: we isolate the *policy* axis, the single compaction rule applied to an evolving
+transcript under a fixed token budget, holding the agent, embedder, and store constant so the
+rule is the only variable. A system is a policy plus an embedder plus a store; our policy
+result explains part of why those systems differ, and we connect the two axes directly by
+running three of these systems (LangChain summary memory, Chroma, Mem0) as policy arms. We do
+not claim the first comparison of agent memory; we claim the first controlled isolation of the
+compaction policy under a fixed budget with a paraphrase-aware metric.
+
+**Agent context compression.** ACON (2510.00615) compresses agent context with one-way
+summarization that deletes the raw history and supports no retrieval; its follow-up (2601.07190)
+contrasts two configurations on a coding agent. Production frameworks (LangChain, LlamaIndex)
+ship summary-buffer memories. To our knowledge none reports a controlled head-to-head of
+compaction *policies* on the same evolving transcript under a fixed budget with a
+paraphrase-aware metric, including the metric-inversion and the truncation-dominates-summary
+results, which is the gap this paper fills.
 
 **Evaluation.** Zheng et al. (2306.05685) document the biases of LLM-as-a-judge. We use a
 fixed strong judge and, in an early experiment, show that the alternative (substring match)
@@ -211,12 +234,18 @@ this task it favors the single-agent side. The accuracy leaders are structure-pr
 policies (semantic, importance). Our reversible hybrid is Pareto-efficient at 0.47 but not the
 accuracy winner here, which we report plainly.
 
-At n=30 these FRAMES accuracy gaps are within noise. The 95% bootstrap intervals span about
-plus or minus 0.17, and even semantic over truncation reaches only p=0.07 (McNemar exact test
-on the paired per-question outcomes). The robust claims here are the two cost dominations, where
-the accuracy difference is exactly zero: recency ties truncation and sub-agent ties importance
-(both p=1.0) at seven and five times the cost respectively. Separating the accuracy leaders
-needs larger N, which we prioritize in the scale-up.
+At n=30 these FRAMES accuracy gaps are within noise (95% bootstrap intervals about plus or minus
+0.17; even semantic over truncation reaches only p=0.07, McNemar exact test on the paired
+per-question outcomes). We therefore ran a scale-up to n=200 on the five separating arms. The
+ordering holds and the headline becomes significant. The accuracy ranking compresses (semantic
+0.49, importance 0.46, reversible_hybrid 0.44, externalize 0.41, truncate 0.40), but semantic
+now beats truncation by +0.10 (McNemar p=0.014) and beats pure retrieval by +0.07 (p=0.04). On
+factual FRAMES, structure-preserving summarization significantly outperforms both blind
+truncation and pure retrieval. The finer distinctions among the middle arms (importance, hybrid,
+externalize) remain within noise even at n=200, which we report rather than overclaim. The two
+cost dominations from the seven-arm n=30 run are robust at any N because their accuracy
+difference is exactly zero: recency ties truncation and sub-agent ties importance (both p=1.0) at
+seven and five times the cost respectively.
 
 ### 5.4 The model axis on FRAMES: the gap widens with capability (EXP-003c)
 
@@ -326,24 +355,32 @@ task in advance, keep both, because the hybrid never lands in the loser group.
 
 ## 7. Limitations
 
-These are dev-scale results and we state the gaps plainly. Question counts are tens to a few
-hundred per cell, not thousands. We report 95% bootstrap confidence intervals and McNemar exact
-tests on the paired per-question outcomes (`experiments/stats.py`), and they show a clean split.
-The LoCoMo results are statistically robust: retrieval beats summarization by 0.27 to 0.38 with
-p below 0.0001 at n=100, and the reversible hybrid ties externalize at the top. The cost
-dominations are robust by construction: recency and sub-agent match truncation and importance on
-accuracy (difference 0.00, p=1.0) while costing seven and five times as much. The FRAMES accuracy
-*rankings*, however, are within noise at n=30: intervals span about plus or minus 0.17 and even
-semantic over truncation reaches only p=0.07. So the cross-domain inversion and the cost results
-are solid, while the FRAMES accuracy ordering needs the larger N of the planned scale-up to be
-significant. We do not yet report multiple seeds. The agent models are open and
-mid-scale (8B, 70B, one reasoning model) on a single free API; no frontier model is included.
-Related systems (MemGPT, Mem0, LangChain summary memory) are cited but not yet run as
-head-to-head arms. The reasoning tier uses a separate summarizer, an acknowledged confound. The
-importance and semantic policies use simple heuristics rather than trained rankers. Both task
-domains are question answering; we do not yet test a real agentic tool-use run (code or web).
-Each of these is a scale-or-rigor gap, not a design flaw, and each is addressed in the next
-revision.
+These are dev-to-moderate-scale results and we state the gaps plainly. We report 95% bootstrap
+confidence intervals and McNemar exact tests on the paired per-question outcomes
+(`experiments/stats.py`). The LoCoMo results are statistically robust: retrieval beats
+summarization by 0.27 to 0.38 with p below 0.0001 at n=100, and the reversible hybrid ties
+externalize at the top. The FRAMES headline is significant at the scale-up n=200: semantic beats
+truncation by +0.10 (p=0.014) and pure retrieval by +0.07 (p=0.04), though the finer middle-arm
+gaps (importance, hybrid, externalize) remain within noise even at n=200. The cost dominations
+are robust by construction: recency and sub-agent match truncation and importance on accuracy
+(difference 0.00, p=1.0) while costing seven and five times as much.
+
+The remaining gaps are each a scale-or-rigor gap, not a design flaw, and each is addressed in the
+current revision. (1) Evaluation rests on a single open 70B judge. Recent work shows reference-
+based judges can override the gold reference under reference-knowledge conflict, dropping accuracy
+sharply (2601.07506), and that judges carry position and self-preference bias (Zheng et al.,
+2306.05685). We are hardening this with a second judge family and reported inter-judge agreement,
+order-randomized swap-consistency, a reference-plus-criteria prompt (2506.13639), and a human
+spot-check on a sample; our own metric-inversion result (Section 5.1) is part of the same
+argument that automatic substring metrics are unsafe. (2) We do not yet report multiple seeds.
+(3) The agent models are open and mid-scale (8B, 70B, one reasoning model); no frontier model is
+yet included. (4) We now run three production memory systems (LangChain summary memory, Chroma,
+Mem0) as policy arms on the factual domain, isolating the embedder and the extract-then-dedupe
+layer; extending them to conversational memory is in progress. (5) The reasoning tier uses a
+separate summarizer, an acknowledged confound we are closing by holding the summarizer constant.
+(6) The importance and semantic policies use simple heuristics rather than trained rankers.
+(7) Both task domains are question answering; adding one genuinely agentic tool-use domain (a
+coding or web agent) is the largest planned extension.
 
 ---
 
@@ -379,5 +416,9 @@ USD (all arms, two frontier models), which informs the planned scale-up.
 
 *[To be formatted to venue style.]*
 Liu et al. 2307.03172 · RULER 2404.06654 · HELMET 2410.02694 · NoLiMa 2502.05167 ·
-MemGPT 2310.08560 · Mem0 2504.19413 · ACON 2510.00615 · Zheng et al. 2306.05685 ·
-FRAMES 2409.12941 · LoCoMo 2402.17753 · RAG (Lewis et al.) 2005.11401.
+MemGPT 2310.08560 · Mem0 2504.19413 · ACON 2510.00615 · ACON-Focus 2601.07190 ·
+Zheng et al. 2306.05685 · FRAMES 2409.12941 · LoCoMo 2402.17753 · RAG (Lewis et al.) 2005.11401.
+*Agent-memory benchmarks (related work):* MemoryAgentBench 2507.05257 (ICLR 2026) ·
+LongMemEval-V2 2605.12493 · MemoryArena 2602.16313 · AMA-Bench 2602.22769 · Mem2ActBench 2601.19935.
+*Judge reliability (Section 7 hardening):* reference-knowledge conflict 2601.07506 ·
+reference+criteria 2506.13639 · Trust-or-Escalate 2407.18370 (ICLR 2025).
