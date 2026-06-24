@@ -36,9 +36,9 @@ from experiments.applied.agent import is_correct  # the naive substring metric
 log = get("exp008")
 
 JUDGE1 = "meta/llama-3.3-70b-instruct"        # the existing judge (verdicts already in the logs)
-PANEL = {                                      # the added cross-family judges
-    "qwen": "qwen/qwen3.5-122b-a10b",
-    "deepseek": "deepseek-ai/deepseek-v4-pro",
+PANEL = {                                      # added cross-family judges (free-tier-friendly variants;
+    "qwen": "qwen/qwen3-next-80b-a3b-instruct",     # the 122B/V4-pro flagships are hard rate-limited)
+    "deepseek": "deepseek-ai/deepseek-v4-flash",
 }
 RUN_GLOBS = ["experiments/runs/EXP-003b__frames-pressure__20260622-1808",  # FRAMES n=200
              "experiments/runs/EXP-004__locomo-transfer__20260622-0233"]    # LoCoMo n=100
@@ -111,30 +111,47 @@ def main():
     rng.shuffle(sample)
     log.info(f"sampled {len(sample)} ({min(half,len(pos))} j1-correct + {min(half,len(neg))} j1-incorrect)")
 
-    judges = {name: NimLLM(model=mid, transcript_path=None) for name, mid in PANEL.items()}
-
-    rows = []
-    for i, c in enumerate(sample):
-        rec = {"key": c["key"], "j1_llama": c["j1"],
-               "substring": int(is_correct(c["cand"], c["gold"])) if c["gold"] else ""}
-        for name, jllm in judges.items():
-            r = jllm.complete(c["messages"], stage="judge")
-            rec[f"j_{name}"] = _verdict(r.content)
-        rows.append(rec)
-        if (i + 1) % 25 == 0:
-            log.info(f"  {i+1}/{len(sample)} re-graded")
+    # Two clients pace independently, so each must stay well under HALF the ~40/min free-tier
+    # limit; min_interval=4s -> ~2 calls / 4s combined = ~30/min, with extra retries for bursts.
+    judges = {name: NimLLM(model=mid, transcript_path=None, min_interval=8.0, max_retries=10)
+              for name, mid in PANEL.items()}
 
     out_dir = Path("experiments/runs/EXP-008__judge-robustness")
     out_dir.mkdir(parents=True, exist_ok=True)
+    results_path = out_dir / "results.csv"
     cols = ["key", "j1_llama", "j_qwen", "j_deepseek", "substring"]
-    with (out_dir / "results.csv").open("w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=cols)
+    # Resume: skip triples already graded (per-row flush below means a crash loses nothing).
+    done = set()
+    if results_path.exists():
+        done = {r["key"] for r in csv.DictReader(results_path.open())}
+        log.info(f"resuming: {len(done)} triples already graded, skipping those")
+    write_header = not results_path.exists()
+    f = results_path.open("a", newline="")
+    w = csv.DictWriter(f, fieldnames=cols)
+    if write_header:
         w.writeheader()
-        for r in rows:
-            w.writerow({k: r.get(k, "") for k in cols})
+    for i, c in enumerate(sample):
+        if c["key"] in done:
+            continue
+        rec = {"key": c["key"], "j1_llama": c["j1"],
+               "substring": int(is_correct(c["cand"], c["gold"])) if c["gold"] else ""}
+        try:
+            for name, jllm in judges.items():
+                r = jllm.complete(c["messages"], stage="judge")
+                rec[f"j_{name}"] = _verdict(r.content)
+        except Exception as e:  # a wedged model must not kill the whole panel; drop this triple
+            log.warning(f"skip triple {c['key'][:8]}: {type(e).__name__}")
+            continue
+        w.writerow({k: rec.get(k, "") for k in cols})
+        f.flush()
+        if (i + 1) % 25 == 0:
+            log.info(f"  {i+1}/{len(sample)} processed")
+    f.close()
+    rows = [{k: (int(v) if (k != "key" and v != "") else v) for k, v in r.items()}
+            for r in csv.DictReader(results_path.open())]
 
     # --- agreement report ---
-    labels = {"j1_llama": "Llama-3.3-70B", "j_qwen": "Qwen3.5-122B", "j_deepseek": "DeepSeek-V4"}
+    labels = {"j1_llama": "Llama-3.3-70B", "j_qwen": "Qwen3-next-80B", "j_deepseek": "DeepSeek-V4-flash"}
     keys = list(labels)
     print(f"\n=== EXP-008: judge agreement (n={len(rows)}) ===")
     print(f"{'pair':<34}{'raw agree':>11}{'kappa':>8}")

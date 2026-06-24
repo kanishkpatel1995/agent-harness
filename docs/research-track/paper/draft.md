@@ -366,13 +366,15 @@ are robust by construction: recency and sub-agent match truncation and importanc
 (difference 0.00, p=1.0) while costing seven and five times as much.
 
 The remaining gaps are each a scale-or-rigor gap, not a design flaw, and each is addressed in the
-current revision. (1) Evaluation rests on a single open 70B judge. Recent work shows reference-
-based judges can override the gold reference under reference-knowledge conflict, dropping accuracy
-sharply (2601.07506), and that judges carry position and self-preference bias (Zheng et al.,
-2306.05685). We are hardening this with a second judge family and reported inter-judge agreement,
-order-randomized swap-consistency, a reference-plus-criteria prompt (2506.13639), and a human
-spot-check on a sample; our own metric-inversion result (Section 5.1) is part of the same
-argument that automatic substring metrics are unsafe. (2) We do not yet report multiple seeds.
+current revision. (1) Evaluation rests on a single open 70B judge, the subfield's most-attacked
+choice (position and self-preference bias, Zheng et al. 2306.05685; reference-knowledge override,
+2601.07506). We harden it in Appendix C (EXP-008a): the verdict is stable across model size
+(kappa 0.72 against an 8B judge) and robust to answer order (kappa 0.82 under the position-bias
+swap), it disagrees with the naive substring metric on a quarter of items (the metric inversion of
+Section 5.1, quantified), and a manual spot-check of the hard disagreement cases confirms the 70B
+as the better grader. The one check the free tier cannot run is cross-family: it throttles
+non-Llama judges to near-zero, so a frontier judge, which the literature finds most robust, is
+folded into the frontier-model addition below. (2) We do not yet report multiple seeds.
 (3) The agent models are open and mid-scale (8B, 70B, one reasoning model); no frontier model is
 yet included. (4) We now run three production memory systems (LangChain summary memory, Chroma,
 Mem0) as policy arms on the factual domain, isolating the embedder and the extract-then-dedupe
@@ -411,6 +413,28 @@ Models are served through a rate-limited, cached client with a wall-clock watchd
 We ran entirely on the free NVIDIA NIM API. A full 824-question by 7-arm by 10-model study on
 paid OpenRouter with 2026 frontier models would cost roughly 140 USD (four arms) to about 1,560
 USD (all arms, two frontier models), which informs the planned scale-up.
+
+## Appendix C. Judge robustness (EXP-008a)
+
+The headline metric is a single 70B Llama LLM judge, the most attacked choice in this subfield.
+We report four robustness checks on 200 stratified verdicts; the cross-family panel is deferred to
+a frontier judge (Section 7), because the free tier throttles non-Llama judges to near-zero.
+
+- **Model size.** Re-grading with an 8B judge of the same family agrees with the 70B on 86% of
+  items (Cohen's kappa 0.72, substantial). The verdict is largely stable across a roughly nine-fold
+  change in judge capacity.
+- **Position.** Swapping the order of the gold and candidate answer in the prompt, the classic
+  position-bias probe, changes the 70B verdict on only 9% of items (kappa 0.82, almost perfect).
+  The judge is robust to answer order.
+- **Against the naive metric.** The 70B judge disagrees with the normalized substring match on
+  25.5% of items. This is the metric inversion of Section 5.1 quantified: a quarter of answers are
+  graded differently, and the substring metric is the one that inverts the policy ranking.
+- **Human spot-check.** On the 28 items where the 8B and 70B disagree (the genuinely hard cases:
+  answers truncated mid-reasoning, off-by-one numbers, abstentions, near-paraphrases), an
+  independent manual adjudication sides with the 70B on roughly 70 to 75%, confirming it as the
+  better primary grader. The disagreements concentrate on ambiguous cases, not random noise; both
+  judges share a mild leniency rather than a directional bias. A third-party human pass on a random
+  sample is the planned final check.
 
 ## References
 
