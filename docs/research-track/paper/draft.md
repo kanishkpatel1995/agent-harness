@@ -343,22 +343,22 @@ transcript it compacts is its own tool-use trajectory (search queries, observati
 than pre-fetched articles. This also removes the oracle: the agent must find the supporting
 passage itself. Compaction fires on 60% of trajectories at this budget.
 
-| policy | oracle FRAMES (n=200) | agentic FRAMES (n=20) |
+| policy | oracle FRAMES (n=200) | agentic FRAMES (n=60) |
 |---|---|---|
 | truncate | 0.40 | 0.20 |
-| externalize | 0.41 | 0.30 |
-| reversible_hybrid | 0.44 | 0.40 |
+| externalize | 0.41 | 0.32 |
+| reversible_hybrid | 0.44 | 0.38 |
 
 Two things change. Accuracy drops across the board, because the agent now has to retrieve its own
 evidence rather than being handed it. And the policy gap *amplifies*: under oracle retrieval
-truncation trails the hybrid by 0.04, but on the real agent transcript it trails by 0.20, half the
-hybrid's accuracy. When the agent gathered the evidence itself, blind truncation throws away work
-it did with no way to recover it, while keeping the raw retrievable lets the agent get its own
-observations back. The bootstrap interval for the hybrid over truncation is entirely positive
-(+0.05 to +0.40); at n=20 the paired McNemar is not yet significant (p=0.125), the same
-small-sample situation as the oracle FRAMES cell before its scale-up, and a scale-up is in
-progress. The qualitative finding, that the agentic setting magnifies the cost of forgetting
-irrecoverably, is robust to the sample size and is the most realistic form of the paper's claim.
+truncation trails the hybrid by 0.04, but on the real agent transcript it trails by 0.18, nearly
+half the hybrid's accuracy. When the agent gathered the evidence itself, blind truncation throws
+away work it did with no way to recover it, while keeping the raw retrievable lets the agent get
+its own observations back. At n=60 both keep-the-raw policies significantly beat truncation: the
+reversible hybrid by 0.18 (McNemar p=0.003, 95% interval +0.08 to +0.30) and externalize by 0.12
+(p=0.039). The amplification is real, not a small-sample artifact, and it is the most realistic
+form of the paper's claim: on a transcript the agent actually built, forgetting without a trace is
+the costliest mistake a compaction policy can make.
 
 ---
 
@@ -407,8 +407,11 @@ Mem0) as policy arms on the factual domain, isolating the embedder and the extra
 layer; extending them to conversational memory is in progress. (5) The reasoning tier uses a
 separate summarizer, an acknowledged confound we are closing by holding the summarizer constant.
 (6) The importance and semantic policies use simple heuristics rather than trained rankers.
-(7) Both task domains are question answering; adding one genuinely agentic tool-use domain (a
-coding or web agent) is the largest planned extension.
+(7) We add an agentic regime in Section 5.8 (EXP-009): an agent-driven FRAMES where the agent
+searches and reads over the corpus itself, so the transcript is a real tool-use trajectory and
+retrieval is no longer oracle, and the policy gap is significant and larger there. A second
+agentic domain (a coding or web agent run on a frontier model where the agent can succeed) is the
+remaining extension.
 
 ---
 
