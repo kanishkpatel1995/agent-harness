@@ -33,8 +33,10 @@ keeps both a summary and a retrievable raw copy, is in the top group of every do
 cell. Fifth, when the agent drives its own tool use so the transcript is a trajectory it actually
 built, the gap amplifies: keeping the raw retrievable significantly beats blind truncation by a
 far wider margin than under oracle retrieval, because the agent cannot recover evidence it
-gathered and then dropped. The robustness of keeping the raw retrievable, not any single peak
-score, is our central finding.
+gathered and then dropped. To show the taxonomy is the right axis, we map twelve production
+memory frameworks to it from their source code, and find that the most capable systems already
+converge on this reversible policy. The robustness of keeping the raw retrievable, not any single
+peak score, is our central finding.
 
 ---
 
@@ -46,19 +48,22 @@ and that list is the agent's entire working memory for that turn. Every loop app
 outputs, reasoning, and results, so the working set only grows. Cost grows with it, because
 the whole history is re-sent each turn; latency grows, because time-to-first-token scales with
 prompt length; and accuracy degrades, because attention dilutes over long contexts (the
-lost-in-the-middle effect). Eventually the agent drifts, repeats, forgets its goal, or hits
-the hard context limit and dies.
+lost-in-the-middle effect) [@liu2023lost; @hsieh2024ruler; @hong2025context]. Eventually the
+agent drifts, repeats, forgets its goal, or hits the hard context limit and dies.
 
-The community agrees on the cure in the abstract. Anthropic names the moves (compaction,
-structured note-taking, "context rot"); Cognition calls context engineering the number-one
-job; LangChain and LlamaIndex ship summary-buffer and vector memories; MemGPT and Letta treat
-the window like RAM and page facts to a store. Recent benchmarks (MemoryAgentBench, LongMemEval)
-compare whole memory *systems* head-to-head on a competency axis. What is still missing is the
-controlled variable underneath those systems: the compaction *policy* itself, isolated under a
-fixed token budget with the agent and store held constant. Prior compression work shrinks a
-static prompt or a set of retrieved passages, usually to cut latency. The single policy that
-runs inside agents, summarize the stale middle of an evolving transcript and drop the raw turns,
-is shipped by every framework and isolated as a controlled variable by almost none.
+The community agrees on the cure in the abstract. Anthropic names the moves, compaction,
+structured note-taking, and "context rot" [@anthropic2026context; @rajasekaran2025effective];
+Cognition argues that context engineering is the central job of building an agent
+[@cognition2025don]; LangChain and LlamaIndex ship summary-buffer and vector memories
+[@langchainndlangchaindoc; @llamaindexndllamaindexdoc]; MemGPT and Letta treat the window like
+RAM and page facts to a store [@packer2023memgpt]. Recent benchmarks compare whole memory
+*systems* head-to-head on a competency axis [@hu2025evaluating; @wu2024longmemeval]. What is
+still missing is the controlled variable underneath those systems: the compaction *policy*
+itself, isolated under a fixed token budget with the agent and store held constant. Prior
+compression work shrinks a static prompt or a set of retrieved passages, usually to cut latency
+[@jiang2023llmlingua; @mu2023learning]. The single policy that runs inside agents, summarize the
+stale middle of an evolving transcript and drop the raw turns, is shipped by every framework
+(Section 2) and isolated as a controlled variable by almost none.
 
 We ask a single question: under a fixed token budget, which compaction policy preserves the
 most answer accuracy per token, and does the answer depend on the task or the model? To
@@ -87,51 +92,111 @@ turns out to need.
 5. An agentic regime in which the agent drives its own search-and-read tool use, so the
    transcript is a real trajectory and retrieval is no longer oracle; there the policy gap
    amplifies and keeping the raw retrievable significantly beats blind truncation.
+6. A grounding of the policy taxonomy in twelve production memory frameworks, read from their
+   source code, showing that each policy is a mechanism some framework ships, that the
+   widely-deployed defaults are exactly the policies we find weak, and that the most capable
+   systems (MemGPT, Letta, Cognee, AutoGPT) already converge on the reversible hybrid.
 
 ---
 
 ## 2. Related Work
 
-**Long-context degradation.** Liu et al. (2307.03172) show that models attend to the ends of
-a long context and lose the middle. Benchmarks such as RULER (2404.06654), HELMET (2410.02694),
-and NoLiMa (2502.05167) quantify how retrieval and reasoning decay with length. These motivate
-compaction but study static contexts, not the evolving transcript of a running agent.
+Compaction sits at the intersection of several literatures: why long context hurts, how agents
+store memory, what policy deployed frameworks actually use, how memory systems are benchmarked,
+how prompts are compressed, and how all of this is scored. We cover each and state precisely
+what we add.
 
-**Agent memory and external stores.** MemGPT (2310.08560), Mem0 (2504.19413), and Letta page
-facts to an external store and retrieve them on demand, treating the window like RAM. RAG
-(Lewis et al., 2005.11401) retrieves from a store rather than stuffing the prompt. These
-systems propose mechanisms; we measure which mechanism wins on which task, and we include a
-retrieval-only and a summary-plus-retrieval policy as arms.
+**Long-context degradation motivates compaction.** Liu et al. [@liu2023lost] show that models
+attend to the start and end of a long context and lose the middle. A line of benchmarks
+quantifies how retrieval and reasoning decay with length: RULER [@hsieh2024ruler], HELMET
+[@yen2024helmet], NoLiMa [@modarressi2025nolima], BABILong [@kuratov2024babilong], and LongBench
+v2 [@bai2024longbench], with position bias traced to the attention mechanism itself
+[@wu2025emergence]. The effect is not only retrieval failure: longer input degrades accuracy even
+when the needle is retrieved perfectly [@du2025context], an effect practitioners call "context
+rot" [@hong2025context]. These studies measure static contexts, not the evolving transcript of a
+running agent, which is what a compaction policy acts on.
 
-**Agent-memory benchmarks (the closest prior work).** A wave of 2025-2026 benchmarks evaluates
-memory *systems* head-to-head. MemoryAgentBench (2507.05257, ICLR 2026) scores Mem0, MemGPT,
-Cognee, Zep, HippoRAG-v2 and others across four competencies (accurate retrieval, test-time
-learning, long-range understanding, selective forgetting) and reports that no single system
-masters all four. LongMemEval-V2 (2605.12493) evaluates retrieval and coding-agent memory over
-long agentic trajectories, and a growing set (MemoryArena 2602.16313, AMA-Bench 2602.22769,
-Mem2ActBench 2601.19935) follows. These benchmark *systems* on a competency axis. We are
-orthogonal: we isolate the *policy* axis, the single compaction rule applied to an evolving
-transcript under a fixed token budget, holding the agent, embedder, and store constant so the
-rule is the only variable. A system is a policy plus an embedder plus a store; our policy
-result explains part of why those systems differ, and we connect the two axes directly by
-running three of these systems (LangChain summary memory, Chroma, Mem0) as policy arms. We do
-not claim the first comparison of agent memory; we claim the first controlled isolation of the
-compaction policy under a fixed budget with a paraphrase-aware metric.
+**Agent memory architectures and external stores.** A second line gives agents an explicit
+memory. Retrieval-augmented generation pulls from a store instead of stuffing the prompt
+[@lewis2020retrieval]. MemGPT casts the window as paged virtual memory, summarizing on overflow
+and paging facts to an external store [@packer2023memgpt]; Generative Agents keep a memory stream
+scored by recency, importance, and relevance, with periodic reflection [@park2023generative].
+MemoryBank [@zhong2023memorybank], RecurrentGPT [@zhou2023recurrentgpt], SCM [@wang2023scm], and
+A-MEM [@xu2025mem] add forgetting curves, recurrent summaries, controllers, and agentic
+note-linking. A knowledge-graph branch (HippoRAG [@gutirrez2024hipporag; @gutirrez2025from], Zep
+and Graphiti [@rasmussen2025zep], Mem0 [@chhikara2025mem]) extracts entities and relations rather
+than storing raw turns. Each work proposes a mechanism; we measure which mechanism wins on which
+task, and include retrieval-only, summary-only, and summary-plus-retrieval policies as arms.
 
-**Agent context compression.** ACON (2510.00615) compresses agent context with one-way
-summarization that deletes the raw history and supports no retrieval; its follow-up (2601.07190)
-contrasts two configurations on a coding agent. Production frameworks (LangChain, LlamaIndex)
-ship summary-buffer memories. To our knowledge none reports a controlled head-to-head of
-compaction *policies* on the same evolving transcript under a fixed budget with a
-paraphrase-aware metric, including the metric-inversion and the truncation-dominates-summary
-results, which is the gap this paper fills.
+**What policy do deployed frameworks actually use?** To check that our taxonomy is the right
+axis and not an invented one, we read the source of twelve production memory frameworks and
+mapped each to the policy it implements (Table 1; Figure 1). Every one of our policies is a shipped
+mechanism, and the mapping is informative: the most widely deployed defaults are truncation and
+recency summarization (LangChain's window and summary-buffer memories [@langchainndlangchaindoc],
+OpenAI's `truncation_strategy` and compaction session [@openaindopenaiassistdoc], Anthropic's
+tool-result clearing and auto-compaction [@anthropicndanthropiccladoc]), while the most capable
+agent stacks (MemGPT [@packer2023memgpt], Letta, AutoGPT, Cognee [@markovic2025optimizing])
+converge on a reversible hybrid that keeps an in-window summary and pages the raw turns to a
+retrievable store. This grounding shows the policy axis is real and under-measured, and it means
+our negative result on recency summarization (Section 5.3) lands on the single most common
+default.
 
-**Evaluation.** Zheng et al. (2306.05685) document the biases of LLM-as-a-judge. We use a
-fixed strong judge and, in an early experiment, show that the alternative (substring match)
-inverts the ranking, which is itself a contribution to how this subfield should be evaluated.
+Table: What compaction policy production memory frameworks implement, by reading their source
+(mapped to the taxonomy of Section 3). Defaults (top) are truncation and recency; the most
+capable stacks (middle) converge on the reversible hybrid; the structured-memory family (bottom)
+motivates our eighth category. "Retrieves" means it pages content back in at answer time.
 
-**Benchmarks.** We evaluate on FRAMES (2409.12941), multi-hop factual QA over Wikipedia, and
-LoCoMo (2402.17753), long multi-session conversational memory.
+| Framework | Native mechanism(s) | Our policy | Retrieves |
+|---|---|---|---|
+| LangChain / LangGraph [@langchainndlangchaindoc] | window / `trim_messages`, summary-buffer | truncate, recency | no |
+| OpenAI Assistants / Agents [@openaindopenaiassistdoc] | `truncation_strategy`, compaction session | truncate, recency | no |
+| LlamaIndex [@llamaindexndllamaindexdoc] | buffer, summary-buffer, vector, memory blocks | truncate, recency, externalize | yes |
+| Anthropic Claude, Claude Code [@anthropicndanthropiccladoc] | clear-tool-uses, compaction, memory tool, subagents | truncate, recency, externalize, subagent | yes |
+| MemGPT [@packer2023memgpt] | recursive summary + paging to recall/archival | reversible hybrid | yes |
+| Letta [@packer2023memgpt] | sliding-window compactor + recall/archival stores | reversible hybrid | yes |
+| AutoGPT / BabyAGI [@babyagindautogptandbadoc] | running summary + vector store; vector store | reversible hybrid; externalize | yes |
+| Generative Agents [@park2023generative] | memory stream, recency+importance+relevance, reflection | externalize, importance | yes |
+| Mem0 [@chhikara2025mem] | extract-then-dedupe facts to vector / graph store | structured (externalize) | yes |
+| Zep / Graphiti [@rasmussen2025zep] | episode to temporal knowledge graph | structured (reversible) | yes |
+| HippoRAG [@gutirrez2024hipporag] | OpenIE knowledge graph + Personalized PageRank | structured (externalize) | yes |
+| Cognee [@markovic2025optimizing] | cognify to graph + per-chunk summaries + raw chunks | structured (reversible hybrid) | yes |
+
+![The eight compaction policies as a map, annotated with the production frameworks that ship each (Table 1). Vertical axis: what survives in the window (raw turns, a free-text summary, or structured facts); horizontal axis: whether dropped content is recoverable from a store. The widely-deployed defaults sit in the lossy column (truncate, recency); the most capable production stacks live in the recoverable column, and converge on our reversible hybrid.](presentation/figures/policy_taxonomy_v1.pdf){width=92%}
+
+**Agent-memory benchmarks (the closest prior work).** A wave of 2024-2026 benchmarks evaluates
+memory *systems* head-to-head. MemoryAgentBench [@hu2025evaluating] scores Mem0, MemGPT, Cognee,
+Zep, and HippoRAG across accurate retrieval, test-time learning, long-range understanding, and
+selective forgetting, and reports that no single system masters all four. LongMemEval
+[@wu2024longmemeval] and its successor LongMemEval-V2 [@wu2026longmemeval] evaluate long-term and
+agentic memory over multi-session histories, and the stream continues [@tavakoli2025beyond]. We
+evaluate on FRAMES [@krishna2025fact], multi-hop factual QA over Wikipedia, and LoCoMo
+[@maharana2024evaluating], long multi-session conversational memory. These works benchmark
+*systems* on a competency axis; we are orthogonal. A system is a policy plus an embedder plus a
+store; we isolate the *policy*, holding the agent, embedder, and store constant so the rule is
+the only variable, and connect the two axes by running three production systems (LangChain
+summary memory, Chroma, Mem0) as policy arms (Section 5.9). We do not claim the first comparison
+of agent memory; we claim the first controlled isolation of the compaction policy under a fixed
+budget with a paraphrase-aware metric.
+
+**Context and prompt compression.** A parallel literature compresses a mostly static prompt to
+cut cost or latency: token pruning with LLMLingua and its variants [@jiang2023llmlingua;
+@pan2024llmlingua; @jiang2023longllmlingua], soft-prompt and autoencoder methods (gisting
+[@mu2023learning], AutoCompressors [@chevalier2023adapting], ICAE [@ge2023context],
+[@li2023compressing]), and retrieved-passage compression (RECOMP [@xu2023recomp]). Closer to
+agents, recursive summarization compresses long inputs and dialogues [@wu2021recursively;
+@wang2023recursively], and ACON compresses agent context with one-way summarization that deletes
+the raw history and supports no retrieval [@kang2025acon]. These compress a prompt or a passage
+set; we compact an evolving multi-turn transcript and compare the policy choice itself, including
+a reversible variant that keeps the raw recoverable, which one-way summarization cannot.
+
+**LLM-as-judge evaluation.** We score answers with a fixed LLM judge, the standard for
+paraphrase-tolerant grading [@zheng2023judging], and inherit its known failure modes: position
+and verbosity bias [@wang2023large; @ye2024justice], self-preference [@panickssery2024llm], and,
+most relevant here, reference-knowledge conflict, where a judge overrides the gold reference with
+its own parametric knowledge [@lee2026judging]. We harden the judge against these (Appendix C)
+following the inter-judge-agreement, jury, and escalation literature [@verga2024replacing;
+@jung2024trust; @bavaresco2024llms], and we show (Section 5.1) that the alternative, a substring
+metric, inverts the policy ranking, which we believe matters for how this subfield is scored.
 
 ---
 
@@ -145,24 +210,41 @@ store at answer time. The one hard constraint is that a tool-call is never split
 result, since real APIs reject such a transcript; the harness enforces this with a safe-split
 that compacts on message boundaries only.
 
-**The seven policies.** Each is a small class with one method, `compact(old, llm, store) ->
-(block, usage)`, and a flag for whether it retrieves at answer time.
+**The policies.** Each benchmarked policy is a small class with one method, `compact(old, llm,
+store) -> (block, usage)`, and a flag for whether it retrieves at answer time. We run seven, each
+shipped by some production system (Table 1):
 
-- **truncate**: drop the oldest raw turns. No LLM call. The cheap floor.
-- **recency**: summarize the stale middle into one block, keep the recent turns. The default
-  in Claude Code, LangChain, and most harnesses.
-- **importance**: score turns and keep the highest-signal ones verbatim; drop the chatter.
+- **truncate**: drop the oldest raw turns. No LLM call. The cheap floor. Shipped as LangChain's
+  window memory and `trim_messages`, OpenAI's `last_messages`, and Anthropic's tool-result
+  clearing.
+- **recency**: summarize the stale middle into one block, keep the recent turns. The default in
+  Claude Code auto-compaction, LangChain's summary-buffer, and OpenAI's compaction session.
+- **importance**: score turns and keep the highest-signal ones verbatim; drop the chatter. The
+  scoring half of Generative Agents' retrieval.
 - **semantic**: cluster turns by topic (embeddings) and summarize each cluster.
-- **externalize**: write the raw turns to a vector store; retrieve the relevant ones at
-  answer time. Keeps the literal fact.
-- **subagent**: isolate a sub-task in a fresh window and return only its result. The
-  multi-agent move.
+- **externalize**: write the raw turns to a vector store; retrieve the relevant ones at answer
+  time. Keeps the literal fact. The whole design of BabyAGI and HippoRAG, and Generative Agents'
+  memory stream.
+- **subagent**: isolate a sub-task in a fresh window and return only its result. The multi-agent
+  move; Claude Code's sub-agents.
 - **reversible_hybrid (ours)**: keep a summary *in* the window *and* write the raw turns to a
-  retrievable store, so the gist is cheap in-context and the detail is losslessly recoverable.
+  retrievable store, so the gist is cheap in-context and the detail is losslessly recoverable. Not
+  a new mechanism: it is what the most capable production stacks already converge on (MemGPT's
+  summarize-then-page, Letta's compactor-plus-recall, AutoGPT's running-summary-plus-vector-store).
 
-The reversible hybrid is not a new mechanism; it is the obvious combination of summary memory
-and retrieval. We include it not as a novel method but as a hypothesis: that carrying both
-mechanisms is robust to whichever one the task rewards.
+We also map, but do not benchmark, an eighth family:
+
+- **structured / graph memory**: distill turns into typed facts or a knowledge graph and retrieve
+  over that structure rather than over raw text (Mem0, Zep and Graphiti, HippoRAG, Cognee). It is a
+  distinct policy: the in-store artifact is neither the raw turn (externalize) nor a free-text
+  summary (recency) but an extracted, deduplicated structure. We exclude it from the controlled
+  bake-off because it changes the store representation, not just the compaction rule, so it is a
+  system difference rather than a policy difference under our fixed-store design. We treat it as
+  future work and discuss it where it bears on the results (Section 5.9).
+
+We include the reversible hybrid not as a novel method but as a hypothesis, that carrying both
+summary and retrieval is robust to whichever one the task rewards, which Table 1 shows the field
+has independently adopted.
 
 ---
 
@@ -185,6 +267,16 @@ paraphrased answer. We show in Section 5.1 why a substring metric is not accepta
 **Models.** A capability axis on the free NVIDIA NIM API: Llama 3.1 8B (dev), Llama 3.3 70B
 (large instruct), and Nemotron 30B-A3B (a reasoning model). The judge is the 70B, fixed across
 every arm and model, so the metric is constant along the axis.
+
+**Policy fidelity.** Our seven policies are minimal, readable reimplementations chosen so the
+*rule* is the only variable, not faithful clones of any one framework. The two we benchmark
+against their real counterparts, recency against LangChain's `ConversationSummaryBufferMemory`
+(Section 5.9) and the three memory backends (Section 5.9), match the production behavior closely.
+The others are deliberately simple: `importance` and `semantic` use heuristic scorers and
+embedding clusters rather than the trained or LLM-driven rankers a system like Generative Agents
+or Mem0 would use, so they are lower bounds on what a tuned version of that policy could achieve.
+We read each framework's source (Table 1) to keep the reimplementations honest about which
+mechanism they stand in for, and we flag the remaining gaps in Section 7.
 
 **Reproducibility.** Each run writes `experiments/runs/EXP-NNN__slug__UTC/` with a manifest
 (config, git SHA, dependencies), every prompt and response (`prompts.jsonl`), `results.csv`,
@@ -454,8 +546,9 @@ are robust by construction: recency and sub-agent match truncation and importanc
 
 The remaining gaps are each a scale-or-rigor gap, not a design flaw, and each is addressed in the
 current revision. (1) Evaluation rests on a single open 70B judge, the subfield's most-attacked
-choice (position and self-preference bias, Zheng et al. 2306.05685; reference-knowledge override,
-2601.07506). We harden it in Appendix C (EXP-008a): the verdict is stable across model size
+choice (position and self-preference bias [@zheng2023judging; @panickssery2024llm];
+reference-knowledge override [@lee2026judging]). We harden it in Appendix C (EXP-008a): the
+verdict is stable across model size
 (kappa 0.72 against an 8B judge) and robust to answer order (kappa 0.82 under the position-bias
 swap), it disagrees with the naive substring metric on a quarter of items (the metric inversion of
 Section 5.1, quantified), and a manual spot-check of the hard disagreement cases confirms the 70B
@@ -476,6 +569,18 @@ searches and reads over the corpus itself, so the transcript is a real tool-use 
 retrieval is no longer oracle, and the policy gap is significant and larger there. A second
 agentic domain (a coding or web agent run on a frontier model where the agent can succeed) is the
 remaining extension.
+
+Four further gaps are scoping choices we state rather than fix here. (8) We benchmark seven
+policies but exclude the structured/graph-memory family (Mem0, Zep, HippoRAG, Cognee; Section 3
+and Table 1): it changes the store representation, not just the compaction rule, so benchmarking
+it fairly needs a second store, which we defer. (9) All three domains are question answering
+(factual FRAMES, conversational LoCoMo, agent-driven FRAMES); a coding or web agent that succeeds
+end to end is the domain we most want next, and is the second agentic domain above. (10) We fix
+one token budget and one high-pressure regime; we report the low-pressure control (all policies
+tie) but do not sweep the budget to trace the full accuracy-cost frontier or locate an optimal
+B\*, which would sharpen the pressure-dependence claim. (11) Our cost axis is tokens; we do not
+yet report wall-clock latency or dollar cost, which is what a deployment actually trades and is a
+cheap addition on the existing run timings. We mark (8) through (11) as scoped, not solved.
 
 ---
 
@@ -534,11 +639,5 @@ a frontier judge (Section 7), because the free tier throttles non-Llama judges t
 
 ## References
 
-*[To be formatted to venue style.]*
-Liu et al. 2307.03172 · RULER 2404.06654 · HELMET 2410.02694 · NoLiMa 2502.05167 ·
-MemGPT 2310.08560 · Mem0 2504.19413 · ACON 2510.00615 · ACON-Focus 2601.07190 ·
-Zheng et al. 2306.05685 · FRAMES 2409.12941 · LoCoMo 2402.17753 · RAG (Lewis et al.) 2005.11401.
-*Agent-memory benchmarks (related work):* MemoryAgentBench 2507.05257 (ICLR 2026) ·
-LongMemEval-V2 2605.12493 · MemoryArena 2602.16313 · AMA-Bench 2602.22769 · Mem2ActBench 2601.19935.
-*Judge reliability (Section 7 hardening):* reference-knowledge conflict 2601.07506 ·
-reference+criteria 2506.13639 · Trust-or-Escalate 2407.18370 (ICLR 2025).
+::: {#refs}
+:::

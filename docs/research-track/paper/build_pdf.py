@@ -20,6 +20,8 @@ REPO = Path(__file__).resolve().parents[3]   # paper -> research-track -> docs -
 DRAFT = REPO / "docs" / "research-track" / "paper" / "draft.md"
 OUT = DRAFT.with_name("draft.pdf")
 
+BIB = DRAFT.with_name("references.bib")     # populated from web-verified citations
+
 EXTRA = [
     "--pdf-engine=xelatex",
     "--resource-path", str(REPO),          # resolve root-relative figure paths
@@ -28,7 +30,9 @@ EXTRA = [
     "-V", "mainfont=Times New Roman",      # matches figstyle.py's house font
     "-V", "linkcolor=RoyalBlue",
     "-V", "urlcolor=RoyalBlue",
+    "-V", "citecolor=RoyalBlue",
     "-V", "colorlinks=true",
+    "-V", r"header-includes=\usepackage{xurl}",   # break long reference URLs at any char
 ]
 
 
@@ -36,9 +40,15 @@ def main() -> int:
     import pypandoc
 
     os.chdir(REPO)                          # so root-relative image paths resolve
+    extra = list(EXTRA)
+    # If a bibliography exists, render [@key] citations + an auto-formatted reference
+    # list via citeproc (author-year). Until then the draft builds without it.
+    if BIB.exists() and BIB.stat().st_size > 0:
+        extra += ["--citeproc", "--bibliography", str(BIB)]
+        print(f"bib: {BIB.relative_to(REPO)} (citeproc on)")
     print(f"pandoc {pypandoc.get_pandoc_version()} -> xelatex")
     print(f"in:  {DRAFT.relative_to(REPO)}")
-    pypandoc.convert_file(str(DRAFT), "pdf", outputfile=str(OUT), extra_args=EXTRA)
+    pypandoc.convert_file(str(DRAFT), "pdf", outputfile=str(OUT), extra_args=extra)
     size = OUT.stat().st_size
     print(f"out: {OUT.relative_to(REPO)}  ({size/1024:.0f} KB)")
     return 0
