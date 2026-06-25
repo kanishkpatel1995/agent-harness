@@ -22,16 +22,19 @@ page-to-a-store, has not been isolated and measured under a fixed token budget w
 and store held constant. We build a minimal, reproducible harness and run a bake-off of seven
 compaction policies across two task domains (multi-hop factual QA and long conversational
 memory) and three model sizes (8B, 70B, and a reasoning model), scoring answer accuracy per
-token with a held-constant LLM judge. We report four results that are, to
-our knowledge, new. First, the metric choice can invert the ranking: a naive substring match
-makes the best policy look worst, because most policies paraphrase. Second, the policy that
-ships in real agents, recency summarization, is Pareto-dominated by plain truncation under
-pressure, and sub-agent isolation costs roughly five times as much for no accuracy gain.
-Third, the best single policy is task-dependent and the ranking *inverts* across domains:
-summarization wins on factual QA, retrieval wins on conversational memory. Fourth, exactly
-one policy, a reversible hybrid that keeps both a summary and a retrievable raw copy, is in
-the top group of every domain-by-capability cell. The robustness of keeping the raw
-retrievable, not any single peak score, is our central finding.
+token with a held-constant, robustness-checked LLM judge. We report five results. First, the
+metric choice can invert the ranking: a naive substring match makes the best policy look worst,
+because most policies paraphrase. Second, the policy that ships in real agents, recency
+summarization, is Pareto-dominated by plain truncation under pressure, and sub-agent isolation
+costs roughly five times as much for no accuracy gain. Third, the best single policy is
+task-dependent and the ranking *inverts* across domains: summarization wins on factual QA,
+retrieval wins on conversational memory. Fourth, exactly one policy, a reversible hybrid that
+keeps both a summary and a retrievable raw copy, is in the top group of every domain-by-capability
+cell. Fifth, when the agent drives its own tool use so the transcript is a trajectory it actually
+built, the gap amplifies: keeping the raw retrievable significantly beats blind truncation by a
+far wider margin than under oracle retrieval, because the agent cannot recover evidence it
+gathered and then dropped. The robustness of keeping the raw retrievable, not any single peak
+score, is our central finding.
 
 ---
 
@@ -74,12 +77,16 @@ turns out to need.
 1. A reproducible harness and protocol for comparing compaction policies on evolving agent
    transcripts, with traceable runs (manifest, every prompt, results, figures).
 2. A demonstration that the scoring metric can invert the policy ranking, and that an
-   LLM judge that credits paraphrase is necessary.
+   LLM judge that credits paraphrase is necessary, with a robustness check (model size,
+   position, and a human spot-check) showing the judge verdict is stable.
 3. Two negative results on widely used techniques: recency summarization is Pareto-dominated
    by truncation under pressure, and sub-agent isolation costs about five times as much for
    no accuracy gain.
 4. A cross-domain, cross-capability map showing that the best policy is task-dependent and
    the ranking inverts, while a reversible-hybrid policy is robust in every cell.
+5. An agentic regime in which the agent drives its own search-and-read tool use, so the
+   transcript is a real trajectory and retrieval is no longer oracle; there the policy gap
+   amplifies and keeping the raw retrievable significantly beats blind truncation.
 
 ---
 
@@ -364,12 +371,15 @@ the costliest mistake a compaction policy can make.
 
 ## 6. Discussion
 
-Six claims are now supported by evidence. (1) Compaction policy matters only under pressure.
-(2) The metric must credit paraphrase, or it inverts the ranking. (3) The shipped default
-(recency summary) is weak, dominated by truncation under pressure. (4) The smart-versus-blind
-gap widens with model capability on factual QA and persists on memory. (5) The best single
-policy is task-dependent: summary on factual, retrieval on memory. (6) The reversible hybrid is
-robust across task type and model size; keeping the raw retrievable is the cross-domain hedge.
+Seven claims are now supported by evidence. (1) Compaction policy matters only under pressure.
+(2) The metric must credit paraphrase, or it inverts the ranking, and the judge that does is
+robust to model size and answer order. (3) The shipped default (recency summary) is weak,
+dominated by truncation under pressure. (4) The smart-versus-blind gap widens with model
+capability on factual QA and persists on memory. (5) The best single policy is task-dependent:
+summary on factual, retrieval on memory. (6) The reversible hybrid is robust across task type and
+model size; keeping the raw retrievable is the cross-domain hedge. (7) When the agent drives its
+own tool use so the transcript is a trajectory it built, the gap amplifies and keeping the raw
+retrievable significantly beats blind truncation, the most realistic form of the result.
 
 For practitioners the operational takeaway is concrete. If you run a long agent and have not
 measured your compaction policy, the default you inherited is probably the wrong one: it likely
