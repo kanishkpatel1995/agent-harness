@@ -365,7 +365,7 @@ its own observations back. At n=60 both keep-the-raw policies significantly beat
 reversible hybrid by 0.18 (McNemar p=0.003, 95% interval +0.08 to +0.30) and externalize by 0.12
 (p=0.039). The amplification is real, not a small-sample artifact, and it is the most realistic
 form of the paper's claim: on a transcript the agent actually built, forgetting without a trace is
-the costliest mistake a compaction policy can make.
+the costliest mistake a compaction policy can make. Figure: `EXP-009_agentic_amplification_v1`.
 
 ---
 
