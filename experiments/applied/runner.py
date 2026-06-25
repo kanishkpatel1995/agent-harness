@@ -171,7 +171,38 @@ EXP003C = Config(
 )
 
 
-PRESETS = {"EXP003B": EXP003B, "EXP003C": EXP003C}
+# EXP-010: seed robustness for the FRAMES headline. Same high-pressure regime and the
+# five separating arms of EXP-003b, run at several seeds (--seed 0/1/2) to report
+# per-arm mean +/- sd and confirm the ranking is stable, not a single-seed artifact.
+# A DISTINCT exp_id so these seed-variant run dirs never shadow the canonical EXP-003b
+# data that the figure scripts glob ("later run dir wins").
+EXP010 = Config(
+    exp_id="EXP-010",
+    slug="frames-seed-robustness",
+    hypothesis=(
+        "The EXP-003b FRAMES policy ranking is stable across random seeds: re-running the "
+        "five separating arms at several seeds gives the same ordering within seed variance, "
+        "so the headline (semantic over truncation) is not a single-seed artifact."
+    ),
+    assumptions=(
+        "Oracle retrieval (gold Wikipedia articles) isolates compaction from search quality.",
+        "Each seed draws a different FRAMES question subset and reseeds stochastic policy steps.",
+        "A fixed 70b judge grades every arm and every seed, so the metric is held constant.",
+        "Seed 0 reproduces the EXP-003b seed-0 numbers (a consistency check).",
+    ),
+    model="meta/llama-3.1-8b-instruct",
+    use_judge=True,
+    policies=("truncate", "externalize", "importance", "semantic", "reversible_hybrid"),
+    n_questions=30,
+    max_articles=6,
+    budget=1500,
+    chunk_chars=1500,
+    keep_recent=4,
+    seed=0,
+)
+
+
+PRESETS = {"EXP003B": EXP003B, "EXP003C": EXP003C, "EXP010": EXP010}
 
 
 def run(cfg):
@@ -332,6 +363,8 @@ def main():
                     help="narrate each cell: question, retrieved chunks, answer, gold, judge verdict")
     ap.add_argument("--question", default=None,
                     help="feature specific FRAMES question id(s), comma-separated (overrides --n)")
+    ap.add_argument("--seed", type=int, default=None,
+                    help="random seed (question sampling + stochastic policy); overrides the preset")
     a = ap.parse_args()
     setup("DEBUG" if a.v >= 2 else "INFO")
     cfg = PRESETS[a.preset] if a.preset in PRESETS else Config()
@@ -369,6 +402,8 @@ def main():
             logging.getLogger(noisy).setLevel(logging.WARNING)
     if a.question:
         cfg.question_ids = tuple(a.question.split(","))
+    if a.seed is not None:
+        cfg.seed = a.seed
     results_path = run(cfg)
     report(results_path)
 

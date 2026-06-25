@@ -48,5 +48,7 @@ CFG = Config(
 
 
 if __name__ == "__main__":
+    import dataclasses
+    n = int(sys.argv[1]) if len(sys.argv) > 1 else 20
     setup("INFO")
-    report(run(CFG))
+    report(run(dataclasses.replace(CFG, n_questions=n)))

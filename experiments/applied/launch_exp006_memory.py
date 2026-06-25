@@ -37,7 +37,7 @@ LABELS = {"nim": "nv-embedqa-e5-v5 (API, 1024-d)",
           "mem0": "Mem0 deduped facts (nv-embedqa)"}
 
 
-def _cfg(store: str, slug: str) -> Config:
+def _cfg(store: str, slug: str, n: int = 20) -> Config:
     return Config(
         exp_id="EXP-006",
         slug=slug,
@@ -57,7 +57,7 @@ def _cfg(store: str, slug: str) -> Config:
         use_judge=True,
         policies=("externalize",),
         store=store,
-        n_questions=20,
+        n_questions=n,
         max_articles=6,
         budget=1500,
         chunk_chars=1500,
@@ -77,11 +77,12 @@ def _summary(results_path):
 
 
 if __name__ == "__main__":
+    n = int(sys.argv[1]) if len(sys.argv) > 1 else 20
     setup("INFO")
     out = {}
     for store, slug in BACKENDS:
-        log.info(f"=== EXP-006 backend: {store} ===")
-        out[store] = _summary(run(_cfg(store, slug)))
+        log.info(f"=== EXP-006 backend: {store} (n={n}) ===")
+        out[store] = _summary(run(_cfg(store, slug, n)))
     print("\n=== EXP-006: FRAMES externalize — memory-system head-to-head ===")
     print(f"{'backend':<8}{'accuracy':>10}{'mean_tokens':>13}{'retr_chars':>12}{'n':>5}   memory system")
     for store, _ in BACKENDS:
