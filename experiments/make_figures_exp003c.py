@@ -76,7 +76,15 @@ def _boot_ci(vals, n_boot=4000, seed=42):
 
 
 def collect():
-    """model -> {policy -> (acc, lo, hi, n)} from every EXP-003b/EXP-003c run dir."""
+    """model -> {policy -> (acc, lo, hi, n)} from every EXP-003b/EXP-003c run dir.
+
+    The model axis is a fixed n=30 comparison: the 8B tier is EXP-003b's n=30
+    high-pressure run, the 70B and reasoning tiers are the EXP-003c n=30 runs. The
+    EXP-003b n=200 scale-up belongs to EXP-003b's own pareto (Section 5.3), not here,
+    so it is skipped to keep the axis on one sample size and matching the Section 5.4
+    table. For the 70B, the summarizer-held-constant run (later dir) wins over the
+    earlier self-summarized run, which the registry flags as a summarizer artifact.
+    """
     data = defaultdict(dict)
     for rundir in sorted(RUNS.glob("EXP-003b__*")) + sorted(RUNS.glob("EXP-003c__*")):
         rc = rundir / "results.csv"
@@ -86,8 +94,11 @@ def collect():
         if not model:
             continue
         acc, n = _acc_by_policy(rc)
+        # Keep the axis at n=30: drop the EXP-003b n=200 scale-up (a different experiment).
+        if rundir.name.startswith("EXP-003b__") and n and max(n.values()) > 60:
+            continue
         for p, s in acc.items():
-            # Later run dirs win (resumed/complete runs overwrite partials).
+            # Later run dirs win (resumed/complete runs, and the corrected 70B, overwrite).
             data[model][p] = (s[0], s[1], s[2], n[p])  # mean, lo, hi, n
     return data
 

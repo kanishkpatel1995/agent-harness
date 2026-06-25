@@ -174,10 +174,10 @@ sources) rewards a summarized reasoning chain. LoCoMo (10 conversations, about 1
 transfers across both, it is a property of the policy, not the benchmark.
 
 **Pressure.** Policy choice only matters when compaction actually fires. We read sources in
-small chunks against a small budget so that compaction fires many times per question (roughly
-9 to 18 events on FRAMES; LoCoMo conversations overflow by about ten times and compact tens of
-times each). A low-pressure regime, where compaction barely fires, ties all policies and is
-reported as a control.
+small chunks against a small budget so that compaction fires repeatedly per question (a median
+of about five events on FRAMES and a mean of nine, up to the mid-60s on the heaviest questions;
+LoCoMo conversations overflow by about ten times and compact tens of times each). A low-pressure
+regime, where compaction barely fires, ties all policies and is reported as a control.
 
 **Metric.** Answer accuracy, graded by a fixed 70B LLM judge that credits a correct but
 paraphrased answer. We show in Section 5.1 why a substring metric is not acceptable.
@@ -217,10 +217,13 @@ holds flat near 0.58. The crossover is around sixteen sources. A long raw contex
 than a short clean summary, so compaction is net positive, not merely a way to survive the
 hard limit. This mechanism explains every impact result below.
 
+![Needle recall versus context length (EXP-002). The no-compaction baseline degrades with length while a fixed-budget compaction holds flat; they cross near sixteen sources, so compacting early is net-positive.](presentation/figures/EXP-002_recall_vs_length_v1.pdf){width=78%}
+
 ### 5.3 Impact: under pressure, the policies separate (EXP-003b)
 
-Reading articles in small chunks against a small budget forces nine to eighteen compaction
-events per question. Over all seven arms on FRAMES (8B, n=30, judged):
+Reading articles in small chunks against a small budget forces repeated compaction, a median of
+about five events per question and a mean of nine (up to the mid-60s on the heaviest questions).
+Over all seven arms on FRAMES (8B, n=30, judged):
 
 | policy | accuracy | mean tokens | on Pareto frontier |
 |---|---|---|---|
@@ -254,30 +257,40 @@ cost dominations from the seven-arm n=30 run are robust at any N because their a
 difference is exactly zero: recency ties truncation and sub-agent ties importance (both p=1.0) at
 seven and five times the cost respectively.
 
+![Accuracy versus cost on FRAMES under pressure (EXP-003b, 8B, n=30). The structure- and retrieval-preserving policies sit on the cost-quality frontier; recency (the shipped default) and sub-agent are dominated, costing far more for no accuracy gain.](presentation/figures/EXP-003b_pareto_v1.pdf){width=80%}
+
 ### 5.4 The model axis on FRAMES: the gap widens with capability (EXP-003c)
 
 We re-ran the five separating arms across 8B, 70B, and the reasoning model, judge fixed.
 
 | arm | 8B | 70B | reasoning |
 |---|---|---|---|
-| reversible_hybrid | 0.47 | 0.67 | 0.70 |
+| semantic | 0.57 | 0.67 | 0.63 |
 | externalize | 0.40 | 0.63 | 0.67 |
 | importance | 0.50 | 0.60 | 0.70 |
-| semantic | 0.57 | 0.53 | 0.63 |
+| reversible_hybrid | 0.47 | 0.53 | 0.70 |
 | truncate | 0.37 | 0.27 | 0.40 |
 
 Blind truncation never improves; it sits at the floor on every model, because a stronger
 model cannot reason over information that was dropped without a trace. Every structure or
 retrieval preserving arm climbs, so the distance between the best compaction and blind
 truncation grows from about 0.2 on the 8B to about 0.3 on the reasoning model. A better model
-has more to gain from a clean compacted context and more to lose from a blind one. On the
-reasoning model the reversible hybrid and importance lead at 0.70.
+has more to gain from a clean compacted context and more to lose from a blind one. On the 70B
+the structure-preserving summary leads (semantic 0.67) and on the reasoning model the
+reversible hybrid and importance lead at 0.70.
 
-We note one methodological caveat. On the reasoning tier the compaction summaries are written
-by a fast 8B model, because the reasoning model's verbose chain-of-thought made per-summary
-latency prohibitive (single cells stalled past 200 seconds). The reasoning model still
-produces the answer, which is the capability the axis measures. The summarizer is therefore
-not held perfectly constant across tiers; closing this is a planned revision.
+We note one methodological caveat about the compaction summarizer. The 70B column holds the
+summarizer constant at the 8B; an earlier 70B run that summarized its own transcript inflated
+the reversible hybrid to 0.67, which the experiment registry flags as a summarizer artifact, so
+we use the corrected, summarizer-held-constant run here. On the reasoning tier the summaries are
+likewise written by the fast 8B model, because the reasoning model's verbose chain-of-thought
+made per-summary latency prohibitive (single cells stalled past 200 seconds); the reasoning
+model still produces the answer, which is the capability the axis measures. The summarizer held
+constant across the 8B and 70B tiers is the 8B, so the policy is the only variable there; the
+reasoning tier shares that 8B summarizer rather than its own, which we report rather than smooth
+over.
+
+![The smart-versus-blind gap widens with capability on FRAMES (EXP-003c). Every structure- or retrieval-preserving arm climbs from the 8B to the reasoning model while blind truncation stays at the floor, so the distance grows from about 0.2 to about 0.3.](presentation/figures/EXP-003c_modelaxis_v1.pdf){width=78%}
 
 ### 5.5 Cross-domain: the ranking inverts (EXP-004)
 
@@ -323,23 +336,30 @@ summary, because the missing fact is simply not in it; worse, the stronger model
 willing to admit it does not know, which costs it the lucky guesses the smaller model
 sometimes got. Retrieval wins on conversational memory at every model size.
 
-### 5.7 One policy wins every cell
+![The compaction-policy ranking inverts across domains (EXP-004). Summary policies (semantic, importance) lead on factual FRAMES and collapse on conversational LoCoMo, where the retrieval policies (externalize, reversible hybrid) lead instead.](presentation/figures/EXP-004_transfer_v1.pdf){width=80%}
+
+### 5.7 One policy stays in the top group of every cell
 
 Across the full design, five arms by two domains by two model sizes:
 
 | arm | FR-8B | FR-70B | LC-8B | LC-70B |
 |---|---|---|---|---|
-| reversible_hybrid | 0.47 | 0.67 | 0.54 | 0.53 |
+| reversible_hybrid | 0.47 | 0.53 | 0.54 | 0.53 |
 | externalize | 0.40 | 0.63 | 0.55 | 0.55 |
 | importance | 0.50 | 0.60 | 0.26 | 0.23 |
-| semantic | 0.57 | 0.53 | 0.27 | 0.17 |
+| semantic | 0.57 | 0.67 | 0.27 | 0.17 |
 | truncate | 0.37 | 0.27 | 0.12 | 0.09 |
 
 The pure policies each win one domain and lose the other: semantic tops FRAMES and collapses
-on LoCoMo; externalize tops LoCoMo and trails on FRAMES. The reversible hybrid is in the top
-group of all four cells, because it carries both a summary and a retrievable raw copy and so
-picks up whichever mechanism the task needs. That cross-domain, cross-capability robustness,
-not a single best score, is the case for keeping the raw retrievable.
+on LoCoMo; externalize tops LoCoMo and trails on FRAMES. The reversible hybrid is rarely the
+single best point estimate in a cell, but it is never significantly below the best either: in
+all four cells its accuracy is within noise of the cell leader. On FRAMES-70B semantic leads at
+0.67 and the hybrid sits at 0.53, a gap that does not reach significance at n=30 (McNemar
+p=0.13); on FRAMES-8B the gap to semantic is also not significant (p=0.51); and on both LoCoMo
+cells the hybrid ties externalize at the top. It is the only arm that stays in the top
+statistical group of every cell, because it carries both a summary and a retrievable raw copy
+and so picks up whichever mechanism the task needs. That cross-domain, cross-capability
+robustness, not a single best score, is the case for keeping the raw retrievable.
 
 ### 5.8 The agentic regime: the gap amplifies (EXP-009)
 
@@ -348,7 +368,7 @@ the policies on a real agent transcript we made FRAMES agentic: the agent is giv
 `read` tools over the question's gold corpus and drives its own multi-step retrieval, so the
 transcript it compacts is its own tool-use trajectory (search queries, observations, reads) rather
 than pre-fetched articles. This also removes the oracle: the agent must find the supporting
-passage itself. Compaction fires on 60% of trajectories at this budget.
+passage itself. Compaction fires on 77% of trajectories at this budget (46 of 60 per arm).
 
 | policy | oracle FRAMES (n=200) | agentic FRAMES (n=60) |
 |---|---|---|
@@ -365,13 +385,44 @@ its own observations back. At n=60 both keep-the-raw policies significantly beat
 reversible hybrid by 0.18 (McNemar p=0.003, 95% interval +0.08 to +0.30) and externalize by 0.12
 (p=0.039). The amplification is real, not a small-sample artifact, and it is the most realistic
 form of the paper's claim: on a transcript the agent actually built, forgetting without a trace is
-the costliest mistake a compaction policy can make. Figure: `EXP-009_agentic_amplification_v1`.
+the costliest mistake a compaction policy can make.
+
+![The agentic regime amplifies the policy gap (EXP-009). Under oracle retrieval the three policies sit within 0.04; on a real agent-driven transcript blind truncation falls to 0.20 while keeping the raw retrievable holds at 0.32 to 0.38, a gap of 0.18.](presentation/figures/EXP-009_agentic_amplification_v1.pdf){width=80%}
+
+### 5.9 From policies to systems (EXP-006, EXP-007)
+
+The policy is one variable inside a memory system; a system is a policy plus an embedder plus a
+store. Two experiments connect the policy axis to the systems practitioners deploy by running
+production memory systems as policy arms on FRAMES.
+
+First, the embedder and the memory layer matter under a fixed externalize policy. Holding the
+policy constant and swapping only the backend, NIM's retrieval-tuned nv-embedqa scores 0.50,
+Mem0's extract-then-dedupe memory 0.40, and Chroma's general-purpose MiniLM 0.35 (n=20, judged,
+same questions). The retrieval-tuned embedder alone buys +0.15 over the general one; Mem0's
+distillation, which rewrites turns into deduplicated facts at an LLM call per add, costs 0.10 on
+this factual task because it smooths away detail the question needs. This is the policy result
+restated at the system level: the keep-the-literal-fact mechanism that wins on memory also
+rewards a store that preserves it.
+
+Second, a framework default is a dependency, not an accuracy win. LangChain's shipped
+ConversationSummaryBufferMemory, the production form of recency summarization, does not beat our
+fifteen-line recency on FRAMES: recency scores 0.45 against the framework's 0.35, at lower cost
+(11.0k versus 13.4k tokens, n=20). Reaching for the framework's summary memory buys a heavier
+dependency and, here, slightly worse accuracy, consistent with the shipped-default result of
+Section 5.3.
+
+Both are n=20 and therefore directional, not significant; we report them to tie the controlled
+policy axis to off-the-shelf systems, and we mark the significance-grade sample size as future work.
+
+![Under a fixed externalize policy, the memory backend is the lever (EXP-006). The same FRAMES questions through the same policy: a retrieval-tuned embedder (NIM nv-embedqa) leads, a general local one (Chroma MiniLM) trails, and Mem0's extract-then-dedupe distillation sits between, n=20 each with the wide intervals shown.](presentation/figures/EXP-006_memory_bakeoff_v1.pdf){width=72%}
 
 ---
 
 ## 6. Discussion
 
-Seven claims are now supported by evidence. (1) Compaction policy matters only under pressure.
+The evidence supports seven claims, which expand the abstract's five headline results with two
+mechanistic findings (when the policy matters, and how the gap scales with model capability).
+(1) Compaction policy matters only under pressure.
 (2) The metric must credit paraphrase, or it inverts the ranking, and the judge that does is
 robust to model size and answer order. (3) The shipped default (recency summary) is weak,
 dominated by truncation under pressure. (4) The smart-versus-blind gap widens with model
@@ -412,10 +463,13 @@ as the better grader. The one check the free tier cannot run is cross-family: it
 non-Llama judges to near-zero, so a frontier judge, which the literature finds most robust, is
 folded into the frontier-model addition below. (2) We do not yet report multiple seeds.
 (3) The agent models are open and mid-scale (8B, 70B, one reasoning model); no frontier model is
-yet included. (4) We now run three production memory systems (LangChain summary memory, Chroma,
-Mem0) as policy arms on the factual domain, isolating the embedder and the extract-then-dedupe
-layer; extending them to conversational memory is in progress. (5) The reasoning tier uses a
-separate summarizer, an acknowledged confound we are closing by holding the summarizer constant.
+yet included. (4) We connect the policy axis to deployed memory systems in Section 5.9 (EXP-006,
+EXP-007): three production systems (LangChain summary memory, Chroma, Mem0) run as policy arms on
+the factual domain, isolating the embedder and the extract-then-dedupe layer, but at n=20 these
+are directional; significance-grade samples and a conversational-memory extension are in progress.
+(5) The reasoning tier's compaction summaries are written by the 8B rather than the reasoning
+model itself (Section 5.4); the 8B and 70B tiers already hold the summarizer constant, and
+matching every tier's summarizer to its own model is a planned revision.
 (6) The importance and semantic policies use simple heuristics rather than trained rankers.
 (7) We add an agentic regime in Section 5.8 (EXP-009): an agent-driven FRAMES where the agent
 searches and reads over the corpus itself, so the transcript is a real tool-use trajectory and
@@ -442,8 +496,9 @@ measurement can be checked and extended.
 
 Each experiment is a self-contained run directory. The seven policies live in
 `experiments/applied/policies.py`; the agent loop and the shared `read_and_compact` /
-`answer_from_window` functions in `experiments/applied/agent.py`; the judge in `judge.py`; the
-embedding store in `embed.py`. Figures are regenerated by `experiments/make_figures_*.py`.
+`answer_from_window` functions in `experiments/applied/agent.py`; the judge in
+`experiments/applied/judge.py`; the embedding store in `experiments/applied/embed.py`. Figures
+are regenerated by `experiments/make_figures_*.py`.
 Models are served through a rate-limited, cached client with a wall-clock watchdog
 (`experiments/nim.py`).
 
@@ -474,6 +529,8 @@ a frontier judge (Section 7), because the free tier throttles non-Llama judges t
   better primary grader. The disagreements concentrate on ambiguous cases, not random noise; both
   judges share a mild leniency rather than a directional bias. A third-party human pass on a random
   sample is the planned final check.
+
+![Judge robustness (EXP-008a, n=200). Agreement with the fixed 70B judge stays high across a roughly nine-fold change in judge size (86%, kappa 0.72) and under the position-bias answer-order swap (91%, kappa 0.82); the naive substring metric agrees on only 74.5%, the metric inversion of Section 5.1 quantified.](presentation/figures/EXP-008_judge_robustness_v1.pdf){width=82%}
 
 ## References
 
