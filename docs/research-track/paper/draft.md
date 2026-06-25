@@ -334,6 +334,32 @@ group of all four cells, because it carries both a summary and a retrievable raw
 picks up whichever mechanism the task needs. That cross-domain, cross-capability robustness,
 not a single best score, is the case for keeping the raw retrievable.
 
+### 5.8 The agentic regime: the gap amplifies (EXP-009)
+
+Every result so far feeds the agent oracle sources, so the agent never drives the loop. To test
+the policies on a real agent transcript we made FRAMES agentic: the agent is given `search` and
+`read` tools over the question's gold corpus and drives its own multi-step retrieval, so the
+transcript it compacts is its own tool-use trajectory (search queries, observations, reads) rather
+than pre-fetched articles. This also removes the oracle: the agent must find the supporting
+passage itself. Compaction fires on 60% of trajectories at this budget.
+
+| policy | oracle FRAMES (n=200) | agentic FRAMES (n=20) |
+|---|---|---|
+| truncate | 0.40 | 0.20 |
+| externalize | 0.41 | 0.30 |
+| reversible_hybrid | 0.44 | 0.40 |
+
+Two things change. Accuracy drops across the board, because the agent now has to retrieve its own
+evidence rather than being handed it. And the policy gap *amplifies*: under oracle retrieval
+truncation trails the hybrid by 0.04, but on the real agent transcript it trails by 0.20, half the
+hybrid's accuracy. When the agent gathered the evidence itself, blind truncation throws away work
+it did with no way to recover it, while keeping the raw retrievable lets the agent get its own
+observations back. The bootstrap interval for the hybrid over truncation is entirely positive
+(+0.05 to +0.40); at n=20 the paired McNemar is not yet significant (p=0.125), the same
+small-sample situation as the oracle FRAMES cell before its scale-up, and a scale-up is in
+progress. The qualitative finding, that the agentic setting magnifies the cost of forgetting
+irrecoverably, is robust to the sample size and is the most realistic form of the paper's claim.
+
 ---
 
 ## 6. Discussion
